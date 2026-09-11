@@ -29,8 +29,8 @@
 <body>
 
     <div id="instructions">
-        WASD: Move | SHIFT: Sprint | SPACE: Jump<br>
-        RIGHT-CLICK / Drag: Rotate Camera | Scroll: Zoom
+        WASD: Move | ARROWS: Look Around<br>
+        SHIFT: Sprint | SPACE: Jump | Scroll: Zoom
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -68,7 +68,6 @@
         scene.add(ground);
 
         // --- 4. POINTY DENSE INSTANCED GRASS FIELD ---
-        // 3D Cone geometry makes grass blades fully 3D and pointy instead of flat planes
         const grassGeometry = new THREE.ConeGeometry(0.08, 0.7, 3);
         grassGeometry.translate(0, 0.35, 0); 
 
@@ -120,7 +119,6 @@
             }
         });
 
-        // Packed with loads of grass (30,000 blades)
         const grassCount = 30000;
         const grassField = new THREE.InstancedMesh(grassGeometry, grassMaterial, grassCount);
         const dummy = new THREE.Object3D();
@@ -142,11 +140,12 @@
         grassGeometry.setAttribute('phase', new THREE.InstancedBufferAttribute(phases, 1));
         scene.add(grassField);
 
-        // --- 5. SCATTERED BIG ROCKS (WITH COLLISION) ---
+        // --- 5. MEDIUM-SMALL ROCKS (SMALLER THAN CHARACTER) ---
+        // Player height is ~2.8 units; rocks scaled to 0.6 - 1.4 units
         const rockGeometry = new THREE.DodecahedronGeometry(1, 1);
         const rockMaterial = new THREE.MeshLambertMaterial({ color: 0x666666, flatShading: true });
         
-        const rockCount = 45;
+        const rockCount = 60;
         const rocksField = new THREE.InstancedMesh(rockGeometry, rockMaterial, rockCount);
         const rockBoundingSpheres = [];
 
@@ -154,16 +153,15 @@
             let rx = (Math.random() - 0.5) * 120;
             let rz = (Math.random() - 0.5) * 120;
             
-            // Keep center spawn clear for player
             if (Math.hypot(rx, rz) < 6) {
                 rx += 10;
                 rz += 10;
             }
 
-            // Big rock scales
-            const scaleX = 2.5 + Math.random() * 3.5;
-            const scaleY = 1.8 + Math.random() * 3.0;
-            const scaleZ = 2.5 + Math.random() * 3.5;
+            // Medium-small rock scales (smaller than player)
+            const scaleX = 0.6 + Math.random() * 0.8;
+            const scaleY = 0.5 + Math.random() * 0.7;
+            const scaleZ = 0.6 + Math.random() * 0.8;
 
             dummy.position.set(rx, scaleY * 0.4, rz);
             dummy.rotation.set(Math.random() * 0.3, Math.random() * Math.PI, Math.random() * 0.3);
@@ -171,7 +169,6 @@
             dummy.updateMatrix();
             rocksField.setMatrixAt(i, dummy.matrix);
 
-            // Save bounding radius for character collision
             const radius = Math.max(scaleX, scaleZ) * 0.85;
             rockBoundingSpheres.push({ x: rx, z: rz, radius: radius });
         }
@@ -233,11 +230,16 @@
         const rightLeg = createLimb(new THREE.BoxGeometry(0.5, 1.2, 0.5), pantsMat, new THREE.Vector3(0.35, 0.6, 0));
 
         // --- 7. CONTROLS & PHYSICS ---
-        const keys = { w: false, a: false, s: false, d: false, space: false, shift: false };
+        const keys = { 
+            w: false, a: false, s: false, d: false, 
+            ArrowLeft: false, ArrowRight: false, ArrowUp: false, ArrowDown: false,
+            space: false, shift: false 
+        };
         
         window.addEventListener('keydown', e => { 
             if (e.code === "Space") keys.space = true;
             if (e.key === "Shift" || e.code === "ShiftLeft") keys.shift = true;
+            if (keys.hasOwnProperty(e.key)) keys[e.key] = true;
             const key = e.key.toLowerCase();
             if (keys.hasOwnProperty(key)) keys[key] = true; 
         });
@@ -245,6 +247,7 @@
         window.addEventListener('keyup', e => { 
             if (e.code === "Space") keys.space = false;
             if (e.key === "Shift" || e.code === "ShiftLeft") keys.shift = false;
+            if (keys.hasOwnProperty(e.key)) keys[e.key] = false;
             const key = e.key.toLowerCase();
             if (keys.hasOwnProperty(key)) keys[key] = false; 
         });
@@ -257,21 +260,6 @@
         let camYaw = 0;
         let camPitch = 0.3;
         let camDistance = 8.0;
-        let isRightMouseDown = false;
-
-        window.addEventListener('mousedown', (e) => {
-            if (e.button === 2) isRightMouseDown = true;
-        });
-        window.addEventListener('mouseup', () => isRightMouseDown = false);
-        window.addEventListener('contextmenu', e => e.preventDefault());
-
-        window.addEventListener('mousemove', e => {
-            if (isRightMouseDown) {
-                camYaw -= e.movementX * 0.005;
-                camPitch += e.movementY * 0.005;
-                camPitch = Math.max(-0.2, Math.min(Math.PI / 2 - 0.1, camPitch));
-            }
-        });
 
         window.addEventListener('wheel', e => {
             camDistance += e.deltaY * 0.005;
@@ -310,6 +298,13 @@
             const elapsedTime = clock.getElapsedTime();
             grassMaterial.uniforms.time.value = elapsedTime;
             grassMaterial.uniforms.playerPos.value.copy(playerGroup.position);
+
+            // CAMERA ROTATION VIA ARROW KEYS
+            const camRotateSpeed = 0.035;
+            if (keys.ArrowLeft) camYaw += camRotateSpeed;
+            if (keys.ArrowRight) camYaw -= camRotateSpeed;
+            if (keys.ArrowUp) camPitch = Math.min(Math.PI / 2 - 0.1, camPitch + camRotateSpeed);
+            if (keys.ArrowDown) camPitch = Math.max(-0.2, camPitch - camRotateSpeed);
 
             // JUMPING & GRAVITY
             if (keys.space && isGrounded) {
