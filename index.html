@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pro Roblox Mechanics + Realistic Grass Shader</title>
+    <title>Pro Roblox Mechanics + Interactive Bending Grass</title>
     <style>
         body { margin: 0; overflow: hidden; font-family: sans-serif; user-select: none; }
         #instructions {
@@ -22,9 +22,9 @@
 <body>
 
     <div id="instructions">
-        WASD to Move<br>
-        Right-Click + Drag to Orbit Camera<br>
-        Mouse Wheel to Zoom (First-Person to Third-Person)
+        WASD to Move & Turn Camera<br>
+        Press 'I' to Zoom In | Press 'O' to Zoom Out<br>
+        Right-Click + Drag to Orbit Camera
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -50,21 +50,42 @@
         dirLight.castShadow = true;
         scene.add(dirLight);
 
-        // --- 3. REALISTIC INSTANCED GRASS SHADER ---
+        // --- 3. INTERACTIVE GRASS SHADER ---
         const grassGeometry = new THREE.PlaneGeometry(0.12, 1.4, 1, 4);
-        grassGeometry.translate(0, 0.7, 0); // Pivot at base
+        grassGeometry.translate(0, 0.7, 0); // Pivot base
 
         const grassMaterial = new THREE.ShaderMaterial({
             vertexShader: `
                 attribute float phase;
                 uniform float time;
+                uniform vec3 playerPos;
                 varying float vHeight;
+
                 void main() {
                     vHeight = position.y / 1.4;
+                    vec3 worldPos = (instanceMatrix * vec4(position, 1.0)).xyz;
                     vec3 pos = position;
-                    // Apply wind sway based on blade height
-                    float wave = sin(time * 3.0 + phase) * 0.3 * pow(vHeight, 2.0);
+
+                    // Wind sway animation
+                    float wave = sin(time * 3.0 + phase) * 0.2 * pow(vHeight, 2.0);
                     pos.x += wave;
+
+                    // Interactive Player Trample/Push Effect
+                    float dist = distance(worldPos.xz, playerPos.xz);
+                    float pushRadius = 1.5;
+
+                    if (dist < pushRadius) {
+                        float pushFactor = (1.0 - (dist / pushRadius)) * pow(vHeight, 1.5);
+                        vec2 pushDir = normalize(worldPos.xz - playerPos.xz);
+                        
+                        // Push grass outwards away from player
+                        pos.x += pushDir.x * pushFactor * 1.2;
+                        pos.z += pushDir.y * pushFactor * 1.2;
+                        
+                        // Make grass bend down / shorter underfoot
+                        pos.y -= pushFactor * 0.7;
+                    }
+
                     vec4 mvPosition = modelViewMatrix * instanceMatrix * vec4(pos, 1.0);
                     gl_Position = projectionMatrix * mvPosition;
                 }
@@ -78,7 +99,10 @@
                     gl_FragColor = vec4(finalColor, 1.0);
                 }
             `,
-            uniforms: { time: { value: 0 } },
+            uniforms: { 
+                time: { value: 0 },
+                playerPos: { value: new THREE.Vector3() }
+            },
             side: THREE.DoubleSide
         });
 
@@ -103,7 +127,7 @@
         grassGeometry.setAttribute('phase', new THREE.InstancedBufferAttribute(phases, 1));
         scene.add(grassField);
 
-        // Ground plane under grass
+        // Dark ground under grass
         const ground = new THREE.Mesh(
             new THREE.PlaneGeometry(100, 100),
             new THREE.MeshLambertMaterial({ color: 0x1e4112 })
@@ -111,7 +135,7 @@
         ground.rotation.x = -Math.PI / 2;
         scene.add(ground);
 
-        // --- 4. PLAYER CHARACTER MODEL ---
+        // --- 4. PLAYER MODEL ---
         const playerGroup = new THREE.Group();
         scene.add(playerGroup);
 
@@ -129,7 +153,7 @@
         torso.position.y = 1.3;
         playerGroup.add(torso);
 
-        // Arms & Legs with top-pivot points
+        // Limbs
         const createLimb = (geo, mat, pos) => {
             geo.translate(0, -0.5, 0);
             const mesh = new THREE.Mesh(geo, mat);
@@ -143,12 +167,17 @@
         const leftLeg = createLimb(new THREE.BoxGeometry(0.5, 1.2, 0.5), pantsMat, new THREE.Vector3(-0.35, 0.6, 0));
         const rightLeg = createLimb(new THREE.BoxGeometry(0.5, 1.2, 0.5), pantsMat, new THREE.Vector3(0.35, 0.6, 0));
 
-        // --- 5. CONTROLS, CAMERA & SMOOTH ROTATION MECHANICS ---
-        const keys = { w: false, a: false, s: false, d: false };
-        window.addEventListener('keydown', e => { if (keys.hasOwnProperty(e.key.toLowerCase())) keys[e.key.toLowerCase()] = true; });
-        window.addEventListener('keyup', e => { if (keys.hasOwnProperty(e.key.toLowerCase())) keys[e.key.toLowerCase()] = false; });
+        // --- 5. CONTROLS, CAMERA & ZOOM ---
+        const keys = { w: false, a: false, s: false, d: false, i: false, o: false };
+        window.addEventListener('keydown', e => { 
+            const key = e.key.toLowerCase();
+            if (keys.hasOwnProperty(key)) keys[key] = true; 
+        });
+        window.addEventListener('keyup', e => { 
+            const key = e.key.toLowerCase();
+            if (keys.hasOwnProperty(key)) keys[key] = false; 
+        });
 
-        // Roblox Orbit & Zoom Camera variables
         let camYaw = 0;
         let camPitch = 0.3;
         let camDistance = 8.0;
@@ -156,22 +185,21 @@
 
         window.addEventListener('mousedown', e => { if (e.button === 0 || e.button === 2) isRightMouseDown = true; });
         window.addEventListener('mouseup', () => isRightMouseDown = false);
-        window.addEventListener('contextmenu', e => e.preventDefault()); // Disable right click menu
+        window.addEventListener('contextmenu', e => e.preventDefault());
 
         window.addEventListener('mousemove', e => {
             if (isRightMouseDown) {
                 camYaw -= e.movementX * 0.005;
                 camPitch += e.movementY * 0.005;
-                camPitch = Math.max(-0.2, Math.min(Math.PI / 2 - 0.1, camPitch)); // Clamp vertical rotation
+                camPitch = Math.max(-0.2, Math.min(Math.PI / 2 - 0.1, camPitch));
             }
         });
 
         window.addEventListener('wheel', e => {
             camDistance += e.deltaY * 0.005;
-            camDistance = Math.max(0, Math.min(25, camDistance)); // First-person at distance 0
+            camDistance = Math.max(0, Math.min(25, camDistance));
         });
 
-        let targetQuaternion = new THREE.Quaternion();
         let walkTimer = 0;
         const speed = 0.12;
 
@@ -183,8 +211,12 @@
 
             const elapsedTime = clock.getElapsedTime();
             grassMaterial.uniforms.time.value = elapsedTime;
+            grassMaterial.uniforms.playerPos.value.copy(playerGroup.position);
 
-            // Compute camera direction-aligned movement
+            // Zoom in / Zoom out with 'I' and 'O' keys
+            if (keys.i) camDistance = Math.max(0, camDistance - 0.2);
+            if (keys.o) camDistance = Math.min(25, camDistance + 0.2);
+
             let moveX = 0;
             let moveZ = 0;
 
@@ -196,18 +228,24 @@
             const isMoving = moveX !== 0 || moveZ !== 0;
 
             if (isMoving) {
-                // Direction relative to camera view
+                // Calculate move direction relative to camera angle
                 const moveAngle = Math.atan2(moveX, moveZ) + camYaw;
-                
+
                 playerGroup.position.x += Math.sin(moveAngle) * speed;
                 playerGroup.position.z += Math.cos(moveAngle) * speed;
 
-                // Smooth rotation using Quaternion SLERP
+                // Smooth player rotation
                 const targetRotation = new THREE.Quaternion();
                 targetRotation.setFromAxisAngle(new THREE.Vector3(0, 1, 0), moveAngle);
-                playerGroup.quaternion.slerp(targetRotation, 0.15); // Smooth turning rate
+                playerGroup.quaternion.slerp(targetRotation, 0.15);
 
-                // Walking animation
+                // Smoothly pull camera yaw around to follow player turning direction
+                let angleDiff = moveAngle - camYaw;
+                while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+                while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+                camYaw += angleDiff * 0.03; // Smooth turning camera follow rate
+
+                // Limb animation
                 walkTimer += 0.18;
                 const swing = Math.sin(walkTimer) * 0.6;
                 leftArm.rotation.x = swing;
@@ -215,18 +253,18 @@
                 leftLeg.rotation.x = -swing;
                 rightLeg.rotation.x = swing;
             } else {
-                // Stand still idle transition
+                // Idle limb reset
                 leftArm.rotation.x = THREE.MathUtils.lerp(leftArm.rotation.x, 0, 0.1);
                 rightArm.rotation.x = THREE.MathUtils.lerp(rightArm.rotation.x, 0, 0.1);
                 leftLeg.rotation.x = THREE.MathUtils.lerp(leftLeg.rotation.x, 0, 0.1);
                 rightLeg.rotation.x = THREE.MathUtils.lerp(rightLeg.rotation.x, 0, 0.1);
             }
 
-            // Hide head in First Person View so camera isn't inside geometry
+            // Hide head in First-Person Mode
             head.visible = camDistance > 0.8;
 
-            // Update Third-Person / First-Person Camera Position
-            const targetPos = playerGroup.position.clone().add(new THREE.Vector3(0, 2.4, 0)); // Focus target (head level)
+            // Update Camera Position
+            const targetPos = playerGroup.position.clone().add(new THREE.Vector3(0, 2.4, 0));
 
             const camX = targetPos.x + camDistance * Math.sin(camYaw) * Math.cos(camPitch);
             const camY = targetPos.y + camDistance * Math.sin(camPitch);
