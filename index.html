@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Roblox 3D Game with Tool Shop & Jumping</title>
+    <title>Roblox Mining Game - Sprint, Unequip, Ground Destruction</title>
     <style>
         body { margin: 0; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; user-select: none; }
         #instructions {
             position: absolute;
             top: 20px;
             left: 20px;
-            background: rgba(0, 0, 0, 0.75);
+            background: rgba(0, 0, 0, 0.8);
             color: white;
             padding: 14px 22px;
             border-radius: 10px;
@@ -19,7 +19,6 @@
             line-height: 1.6;
             box-shadow: 0 4px 10px rgba(0,0,0,0.3);
         }
-        /* Right Side Shop UI */
         #shop-container {
             position: absolute;
             top: 20px;
@@ -77,9 +76,10 @@
 <body>
 
     <div id="instructions">
-        WASD to Move | SPACE to Jump<br>
-        Touchpad / Mouse: Drag to Rotate Camera<br>
-        Press 'I' to Zoom In | Press 'O' to Zoom Out
+        WASD: Move | SHIFT: Sprint | SPACE: Jump<br>
+        E: Equip / Unequip Tool<br>
+        LEFT-CLICK Ground: Mine / Destroy Terrain<br>
+        RIGHT-CLICK / Drag: Rotate Camera
     </div>
 
     <!-- Shop UI -->
@@ -111,7 +111,31 @@
         dirLight.castShadow = true;
         scene.add(dirLight);
 
-        // --- 3. DENSE INTERACTIVE GRASS ---
+        // --- 3. DESTRUCTIBLE TERRAIN & GRASS ---
+        // Dynamic plane geometry that deforms when mined
+        const groundSize = 120;
+        const groundSegments = 120;
+        const groundGeometry = new THREE.PlaneGeometry(groundSize, groundSize, groundSegments, groundSegments);
+        groundGeometry.rotateX(-Math.PI / 2);
+
+        const groundMaterial = new THREE.MeshLambertMaterial({ 
+            color: 0x1e4112,
+            wireframe: false,
+            flatShading: true
+        });
+        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+        scene.add(ground);
+
+        // Wireframe indicator ring around player showing mining reach
+        const mineRadiusRing = new THREE.Mesh(
+            new THREE.RingGeometry(4.8, 5.0, 32),
+            new THREE.MeshBasicMaterial({ color: 0xffff00, side: THREE.DoubleSide, transparent: true, opacity: 0.5 })
+        );
+        mineRadiusRing.rotation.x = -Math.PI / 2;
+        mineRadiusRing.position.y = 0.05;
+        scene.add(mineRadiusRing);
+
+        // Grass Blades
         const grassGeometry = new THREE.PlaneGeometry(0.1, 0.6, 1, 4);
         grassGeometry.translate(0, 0.3, 0); 
 
@@ -162,7 +186,7 @@
             side: THREE.DoubleSide
         });
 
-        const grassCount = 60000;
+        const grassCount = 40000;
         const grassField = new THREE.InstancedMesh(grassGeometry, grassMaterial, grassCount);
         const dummy = new THREE.Object3D();
         const phases = new Float32Array(grassCount);
@@ -182,13 +206,6 @@
         }
         grassGeometry.setAttribute('phase', new THREE.InstancedBufferAttribute(phases, 1));
         scene.add(grassField);
-
-        const ground = new THREE.Mesh(
-            new THREE.PlaneGeometry(120, 120),
-            new THREE.MeshLambertMaterial({ color: 0x1e4112 })
-        );
-        ground.rotation.x = -Math.PI / 2;
-        scene.add(ground);
 
         // --- 4. ROBLOX FACE TEXTURE ---
         const canvas = document.createElement('canvas');
@@ -213,7 +230,6 @@
         const pantsMat = new THREE.MeshLambertMaterial({ color: 0x222222 });
         const baconHairMat = new THREE.MeshLambertMaterial({ color: 0x5a2d0c });
 
-        // Head Group
         const headGroup = new THREE.Group();
         headGroup.position.y = 2.4;
         const headMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 0.8, 24), skinMat);
@@ -222,7 +238,6 @@
         facePlane.position.set(0, 0, 0.46);
         headGroup.add(facePlane);
 
-        // Bacon Hair
         const strand1 = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.15, 0.7), baconHairMat);
         strand1.position.set(0, 0.42, 0); headGroup.add(strand1);
         const strand2 = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.12, 0.8), baconHairMat);
@@ -231,12 +246,10 @@
         strand3.position.set(0.25, 0.35, 0.1); strand3.rotation.z = -0.2; headGroup.add(strand3);
         playerGroup.add(headGroup);
 
-        // Torso
         const torso = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.4, 0.6), shirtMat);
         torso.position.y = 1.3;
         playerGroup.add(torso);
 
-        // Limbs
         const createLimb = (geo, mat, pos) => {
             geo.translate(0, -0.5, 0);
             const mesh = new THREE.Mesh(geo, mat);
@@ -250,26 +263,26 @@
         const leftLeg = createLimb(new THREE.BoxGeometry(0.5, 1.2, 0.5), pantsMat, new THREE.Vector3(-0.35, 0.6, 0));
         const rightLeg = createLimb(new THREE.BoxGeometry(0.5, 1.2, 0.5), pantsMat, new THREE.Vector3(0.35, 0.6, 0));
 
-        // Tool Mount Point on Right Arm
         const toolContainer = new THREE.Group();
-        toolContainer.position.set(0, -1.0, 0.3); // Mounted at hand height
+        toolContainer.position.set(0, -1.0, 0.3);
         rightArm.add(toolContainer);
 
         // --- 6. 10 TOOL TIERS CREATOR ---
         const toolsData = [
-            { id: 1, name: "Rusty Chisel", desc: "Old & corroded metal", color: 0x8b4513, geo: "chisel" },
-            { id: 2, name: "Iron Pick", desc: "Basic sturdy iron", color: 0xaaaaaa, geo: "pick" },
-            { id: 3, name: "Reinforced Steel", desc: "Sharpened tempered steel", color: 0x4682b4, geo: "chisel" },
-            { id: 4, name: "Gold Chisel", desc: "Shiny polished gold", color: 0xffd700, geo: "chisel" },
-            { id: 5, name: "Diamond Pick", desc: "Crystallized diamond head", color: 0x00ffff, geo: "pick" },
-            { id: 6, name: "Magma Cutter", desc: "Superheated volcanic rock", color: 0xff4500, geo: "drill" },
-            { id: 7, name: "Plasma Dagger", desc: "Glowing ionized blade", color: 0x9400d3, geo: "chisel" },
-            { id: 8, name: "Void Scythe", desc: "Forged in outer space", color: 0x111111, geo: "pick" },
-            { id: 9, name: "Quantum Beam", desc: "High-tech energy tool", color: 0x00ff66, geo: "drill" },
-            { id: 10, name: "Galaxy Drill", desc: "Ultimate cosmic drill", color: 0xff00ff, geo: "galaxy" }
+            { id: 1, name: "Rusty Chisel", desc: "Old & corroded metal", color: 0x8b4513, geo: "chisel", power: 0.3 },
+            { id: 2, name: "Iron Pick", desc: "Basic sturdy iron", color: 0xaaaaaa, geo: "pick", power: 0.5 },
+            { id: 3, name: "Reinforced Steel", desc: "Sharpened tempered steel", color: 0x4682b4, geo: "chisel", power: 0.7 },
+            { id: 4, name: "Gold Chisel", desc: "Shiny polished gold", color: 0xffd700, geo: "chisel", power: 1.0 },
+            { id: 5, name: "Diamond Pick", desc: "Crystallized diamond head", color: 0x00ffff, geo: "pick", power: 1.3 },
+            { id: 6, name: "Magma Cutter", desc: "Superheated volcanic rock", color: 0xff4500, geo: "drill", power: 1.7 },
+            { id: 7, name: "Plasma Dagger", desc: "Glowing ionized blade", color: 0x9400d3, geo: "chisel", power: 2.1 },
+            { id: 8, name: "Void Scythe", desc: "Forged in outer space", color: 0x111111, geo: "pick", power: 2.6 },
+            { id: 9, name: "Quantum Beam", desc: "High-tech energy tool", color: 0x00ff66, geo: "drill", power: 3.2 },
+            { id: 10, name: "Galaxy Drill", desc: "Ultimate cosmic drill", color: 0xff00ff, geo: "galaxy", power: 4.5 }
         ];
 
         let currentToolIndex = 0;
+        let isToolEquipped = true;
 
         function buildToolMesh(data) {
             const group = new THREE.Group();
@@ -305,7 +318,6 @@
                 group.add(tip);
 
                 if (data.geo === "galaxy") {
-                    // Galaxy ring particle effect around drill
                     const ringGeo = new THREE.TorusGeometry(0.35, 0.04, 16, 100);
                     const ringMat = new THREE.MeshBasicMaterial({ color: 0x00ffff });
                     const ring = new THREE.Mesh(ringGeo, ringMat);
@@ -318,6 +330,8 @@
 
         function equipTool(index) {
             currentToolIndex = index;
+            isToolEquipped = true;
+            toolContainer.visible = true;
             while(toolContainer.children.length > 0) {
                 toolContainer.remove(toolContainer.children[0]);
             }
@@ -326,7 +340,6 @@
             updateShopUI();
         }
 
-        // Render UI Shop Elements
         const shopListEl = document.getElementById('shop-list');
         toolsData.forEach((tool, idx) => {
             const item = document.createElement('div');
@@ -344,7 +357,7 @@
         function updateShopUI() {
             toolsData.forEach((_, idx) => {
                 const btn = document.getElementById(`btn-tool-${idx}`);
-                if (idx === currentToolIndex) {
+                if (idx === currentToolIndex && isToolEquipped) {
                     btn.innerText = "Equipped";
                     btn.className = "shop-btn active";
                 } else {
@@ -354,22 +367,78 @@
             });
         }
 
-        equipTool(0); // Equip starter rusty chisel
+        equipTool(0);
 
-        // --- 7. CONTROLS, JUMPING & PHYSICS ---
-        const keys = { w: false, a: false, s: false, d: false, i: false, o: false, space: false };
+        // --- 7. TERRAIN MINING RAYCASTING ---
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+
+        window.addEventListener('click', (e) => {
+            // Ignore UI clicks
+            if (e.target.closest('#shop-container')) return;
+            if (!isToolEquipped) return; // Must have tool equipped to mine
+
+            mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObject(ground);
+
+            if (intersects.length > 0) {
+                const hitPoint = intersects[0].point;
+                const distToPlayer = playerGroup.position.distanceTo(hitPoint);
+
+                // Check radius restriction (5 units reach)
+                if (distToPlayer <= 5.0) {
+                    deformGround(hitPoint, toolsData[currentToolIndex].power);
+                }
+            }
+        });
+
+        function deformGround(center, power) {
+            const posAttr = groundGeometry.attributes.position;
+            const radius = 1.8;
+
+            for (let i = 0; i < posAttr.count; i++) {
+                const vx = posAttr.getX(i);
+                const vy = posAttr.getY(i);
+                const vz = posAttr.getZ(i);
+
+                const dist = Math.sqrt((vx - center.x) ** 2 + (vz - center.z) ** 2);
+                if (dist < radius) {
+                    const depth = (1 - (dist / radius)) * power;
+                    posAttr.setY(i, vy - depth); // Dig hole down
+                }
+            }
+            posAttr.needsUpdate = true;
+            groundGeometry.computeVertexNormals();
+        }
+
+        // --- 8. CONTROLS, SPRINT & TOGGLES ---
+        const keys = { w: false, a: false, s: false, d: false, i: false, o: false, space: false, shift: false };
+        
         window.addEventListener('keydown', e => { 
             if (e.code === "Space") keys.space = true;
+            if (e.key === "Shift" || e.code === "ShiftLeft") keys.shift = true;
+            
+            // Toggle Equip ('E' key)
+            if (e.key.toLowerCase() === 'e') {
+                isToolEquipped = !isToolEquipped;
+                toolContainer.visible = isToolEquipped;
+                updateShopUI();
+            }
+
             const key = e.key.toLowerCase();
             if (keys.hasOwnProperty(key)) keys[key] = true; 
         });
+
         window.addEventListener('keyup', e => { 
             if (e.code === "Space") keys.space = false;
+            if (e.key === "Shift" || e.code === "ShiftLeft") keys.shift = false;
             const key = e.key.toLowerCase();
             if (keys.hasOwnProperty(key)) keys[key] = false; 
         });
 
-        // Jump physics variables
         let playerVelocityY = 0;
         const gravity = -0.015;
         const jumpStrength = 0.35;
@@ -378,14 +447,16 @@
         let camYaw = 0;
         let camPitch = 0.3;
         let camDistance = 8.0;
-        let isDragging = false;
+        let isRightMouseDown = false;
 
-        window.addEventListener('mousedown', () => isDragging = true);
-        window.addEventListener('mouseup', () => isDragging = false);
+        window.addEventListener('mousedown', (e) => {
+            if (e.button === 2) isRightMouseDown = true;
+        });
+        window.addEventListener('mouseup', () => isRightMouseDown = false);
         window.addEventListener('contextmenu', e => e.preventDefault());
 
         window.addEventListener('mousemove', e => {
-            if (isDragging) {
+            if (isRightMouseDown) {
                 camYaw -= e.movementX * 0.005;
                 camPitch += e.movementY * 0.005;
                 camPitch = Math.max(-0.2, Math.min(Math.PI / 2 - 0.1, camPitch));
@@ -399,9 +470,8 @@
 
         let currentRotation = 0;
         let walkTimer = 0;
-        const speed = 0.12;
 
-        // --- 8. GAME LOOP ---
+        // --- 9. GAME LOOP ---
         const clock = new THREE.Clock();
 
         function animate() {
@@ -410,6 +480,9 @@
             const elapsedTime = clock.getElapsedTime();
             grassMaterial.uniforms.time.value = elapsedTime;
             grassMaterial.uniforms.playerPos.value.copy(playerGroup.position);
+
+            mineRadiusRing.position.x = playerGroup.position.x;
+            mineRadiusRing.position.z = playerGroup.position.z;
 
             if (keys.i) camDistance = Math.max(0, camDistance - 0.2);
             if (keys.o) camDistance = Math.min(25, camDistance + 0.2);
@@ -420,20 +493,21 @@
                 isGrounded = false;
             }
 
-            // Apply Gravity & Update Vertical Position
             playerGroup.position.y += playerVelocityY;
             if (!isGrounded) {
                 playerVelocityY += gravity;
             }
 
-            // Ground Collision
             if (playerGroup.position.y <= 0) {
                 playerGroup.position.y = 0;
                 playerVelocityY = 0;
                 isGrounded = true;
             }
 
-            // --- MOVEMENT ---
+            // --- SPRINT & MOVEMENT SPEED ---
+            const currentSpeed = keys.shift ? 0.24 : 0.12;
+            const animFrequency = keys.shift ? 0.30 : 0.18;
+
             let inputX = 0;
             let inputZ = 0;
 
@@ -447,8 +521,8 @@
             if (isMoving) {
                 const targetAngle = Math.atan2(inputX, inputZ) + camYaw;
 
-                playerGroup.position.x += Math.sin(targetAngle) * speed;
-                playerGroup.position.z += Math.cos(targetAngle) * speed;
+                playerGroup.position.x += Math.sin(targetAngle) * currentSpeed;
+                playerGroup.position.z += Math.cos(targetAngle) * currentSpeed;
 
                 let diff = targetAngle - currentRotation;
                 while (diff < -Math.PI) diff += Math.PI * 2;
@@ -457,18 +531,25 @@
 
                 playerGroup.rotation.y = currentRotation;
 
-                walkTimer += 0.18;
+                walkTimer += animFrequency;
                 const swing = Math.sin(walkTimer) * 0.6;
                 leftArm.rotation.x = swing;
                 
-                // Lift right arm slightly to hold tool clearly forward
-                rightArm.rotation.x = -Math.PI / 4 + (swing * 0.3);
+                if (isToolEquipped) {
+                    rightArm.rotation.x = -Math.PI / 4 + (swing * 0.3);
+                } else {
+                    rightArm.rotation.x = -swing;
+                }
                 leftLeg.rotation.x = -swing;
                 rightLeg.rotation.x = swing;
             } else {
                 leftArm.rotation.x = THREE.MathUtils.lerp(leftArm.rotation.x, 0, 0.1);
-                // Idle arm position holding tool
-                rightArm.rotation.x = THREE.MathUtils.lerp(rightArm.rotation.x, -Math.PI / 4, 0.1);
+                
+                if (isToolEquipped) {
+                    rightArm.rotation.x = THREE.MathUtils.lerp(rightArm.rotation.x, -Math.PI / 4, 0.1);
+                } else {
+                    rightArm.rotation.x = THREE.MathUtils.lerp(rightArm.rotation.x, 0, 0.1);
+                }
                 leftLeg.rotation.x = THREE.MathUtils.lerp(leftLeg.rotation.x, 0, 0.1);
                 rightLeg.rotation.x = THREE.MathUtils.lerp(rightLeg.rotation.x, 0, 0.1);
             }
