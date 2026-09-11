@@ -110,36 +110,37 @@
         scene.fog = new THREE.FogExp2(0x87ceeb, 0.012);
 
         const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
         renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.shadowMap.enabled = true;
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = false; // Disabled shadows for high performance boost
         document.body.appendChild(renderer.domElement);
 
         // --- 2. LIGHTS ---
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
         scene.add(ambientLight);
 
-        const dirLight = new THREE.DirectionalLight(0xfffaed, 0.9);
+        const dirLight = new THREE.DirectionalLight(0xfffaed, 0.8);
         dirLight.position.set(30, 50, 20);
-        dirLight.castShadow = true;
         scene.add(dirLight);
 
         // --- 3. MULTI-LAYER TERRAIN & COLOR SYSTEM ---
         const groundSize = 120;
-        const groundSegments = 120;
+        // Optimization: Reduced segment resolution from 120 to 60 for significantly higher FPS
+        const groundSegments = 60;
         const groundGeometry = new THREE.PlaneGeometry(groundSize, groundSize, groundSegments, groundSegments);
         groundGeometry.rotateX(-Math.PI / 2);
 
-        // Colors for each layer depth
+        // Expanded layer depth mapping (deeper limits)
         const layerColors = [
             { depth: 0, color: new THREE.Color(0x1e4112) },    // Grass
-            { depth: -2, color: new THREE.Color(0x555555) },   // Stone
-            { depth: -6, color: new THREE.Color(0x22222a) },   // Deepslate
-            { depth: -12, color: new THREE.Color(0xc43000) },  // Magma / Lava
-            { depth: -20, color: new THREE.Color(0x4b0082) }   // Galaxy Void
+            { depth: -5, color: new THREE.Color(0x555555) },   // Stone
+            { depth: -15, color: new THREE.Color(0x22222a) },  // Deepslate
+            { depth: -35, color: new THREE.Color(0xc43000) },  // Magma / Lava
+            { depth: -60, color: new THREE.Color(0x4b0082) },  // Galaxy Void
+            { depth: -100, color: new THREE.Color(0x050010) }  // Core Abyss
         ];
 
-        // Apply vertex colors dynamically based on height (Y position)
         const posAttr = groundGeometry.attributes.position;
         const colorAttr = new THREE.BufferAttribute(new Float32Array(posAttr.count * 3), 3);
         groundGeometry.setAttribute('color', colorAttr);
@@ -184,8 +185,8 @@
         mineRadiusRing.position.y = 0.05;
         scene.add(mineRadiusRing);
 
-        // --- 4. INTERACTIVE GRASS FIELD ---
-        const grassGeometry = new THREE.PlaneGeometry(0.1, 0.6, 1, 4);
+        // --- 4. OPTIMIZED INSTANCED GRASS FIELD ---
+        const grassGeometry = new THREE.PlaneGeometry(0.1, 0.6, 1, 2);
         grassGeometry.translate(0, 0.3, 0); 
 
         const grassMaterial = new THREE.ShaderMaterial({
@@ -235,16 +236,17 @@
             side: THREE.DoubleSide
         });
 
-        const grassCount = 40000;
+        // Optimization: Reduced instances from 40,000 to 8,000 to eliminate stuttering
+        const grassCount = 8000;
         const grassField = new THREE.InstancedMesh(grassGeometry, grassMaterial, grassCount);
         const dummy = new THREE.Object3D();
         const phases = new Float32Array(grassCount);
 
         for (let i = 0; i < grassCount; i++) {
             dummy.position.set(
-                (Math.random() - 0.5) * 100,
+                (Math.random() - 0.5) * 110,
                 0,
-                (Math.random() - 0.5) * 100
+                (Math.random() - 0.5) * 110
             );
             dummy.rotation.y = Math.random() * Math.PI * 2;
             const scale = 0.8 + Math.random() * 0.4;
@@ -258,15 +260,15 @@
 
         // --- 5. ROBLOX FACE & BACON HAIR CHARACTER ---
         const canvas = document.createElement('canvas');
-        canvas.width = 256; canvas.height = 256;
+        canvas.width = 128; canvas.height = 128;
         const ctx = canvas.getContext('2d');
-        ctx.fillStyle = '#ffcc99'; ctx.fillRect(0, 0, 256, 256);
+        ctx.fillStyle = '#ffcc99'; ctx.fillRect(0, 0, 128, 128);
         ctx.fillStyle = '#111111';
-        ctx.beginPath(); ctx.arc(80, 110, 14, 0, Math.PI * 2); ctx.arc(176, 110, 14, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(40, 55, 7, 0, Math.PI * 2); ctx.arc(88, 55, 7, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = '#ffffff';
-        ctx.beginPath(); ctx.arc(75, 105, 4, 0, Math.PI * 2); ctx.arc(171, 105, 4, 0, Math.PI * 2); ctx.fill();
-        ctx.lineWidth = 8; ctx.strokeStyle = '#111111';
-        ctx.beginPath(); ctx.arc(128, 140, 45, 0.1 * Math.PI, 0.9 * Math.PI, false); ctx.stroke();
+        ctx.beginPath(); ctx.arc(37, 52, 2, 0, Math.PI * 2); ctx.arc(85, 52, 2, 0, Math.PI * 2); ctx.fill();
+        ctx.lineWidth = 4; ctx.strokeStyle = '#111111';
+        ctx.beginPath(); ctx.arc(64, 70, 22, 0.1 * Math.PI, 0.9 * Math.PI, false); ctx.stroke();
         const faceTexture = new THREE.CanvasTexture(canvas);
 
         const playerGroup = new THREE.Group();
@@ -280,7 +282,7 @@
 
         const headGroup = new THREE.Group();
         headGroup.position.y = 2.4;
-        const headMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 0.8, 24), skinMat);
+        const headMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 0.8, 16), skinMat);
         headGroup.add(headMesh);
         const facePlane = new THREE.Mesh(new THREE.PlaneGeometry(0.7, 0.7), faceMat);
         facePlane.position.set(0, 0, 0.46);
@@ -315,18 +317,18 @@
         toolContainer.position.set(0, -1.0, 0.3);
         rightArm.add(toolContainer);
 
-        // --- 6. 10 TOOL TIERS WITH STRENGTH & SPEED ---
+        // --- 6. 10 TOOL TIERS (BUFFED STATS & DEEP DIGGING) ---
         const toolsData = [
-            { id: 1, name: "Rusty Chisel", desc: "Old corroded iron", color: 0x8b4513, geo: "chisel", power: 0.4, speed: 1.0, radius: 1.2 },
-            { id: 2, name: "Iron Pick", desc: "Basic sturdy iron", color: 0xaaaaaa, geo: "pick", power: 0.8, speed: 1.2, radius: 1.5 },
-            { id: 3, name: "Steel Drill", desc: "Tempered steel point", color: 0x4682b4, geo: "drill", power: 1.3, speed: 1.5, radius: 1.8 },
-            { id: 4, name: "Gold Chisel", desc: "Fast heavy gold", color: 0xffd700, geo: "chisel", power: 1.9, speed: 2.0, radius: 2.0 },
-            { id: 5, name: "Diamond Pick", desc: "Crystallized diamond", color: 0x00ffff, geo: "pick", power: 2.6, speed: 2.3, radius: 2.4 },
-            { id: 6, name: "Magma Breaker", desc: "Molten lava power", color: 0xff4500, geo: "drill", power: 3.4, speed: 2.8, radius: 2.8 },
-            { id: 7, name: "Plasma Dagger", desc: "Ionized high speed", color: 0x9400d3, geo: "chisel", power: 4.3, speed: 3.4, radius: 3.2 },
-            { id: 8, name: "Void Scythe", desc: "Deepslate destructive", color: 0x111111, geo: "pick", power: 5.4, speed: 4.0, radius: 3.6 },
-            { id: 9, name: "Quantum Beam", desc: "Fast particle laser", color: 0x00ff66, geo: "drill", power: 6.8, speed: 4.8, radius: 4.0 },
-            { id: 10, name: "Galaxy Drill", desc: "Ultimate cosmic drill", color: 0xff00ff, geo: "galaxy", power: 9.0, speed: 6.0, radius: 4.8 }
+            { id: 1, name: "Rusty Chisel", desc: "Old corroded iron", color: 0x8b4513, geo: "chisel", power: 1.2, speed: 1.2, radius: 1.5 },
+            { id: 2, name: "Iron Pick", desc: "Basic sturdy iron", color: 0xaaaaaa, geo: "pick", power: 2.2, speed: 1.5, radius: 1.8 },
+            { id: 3, name: "Steel Drill", desc: "Tempered steel point", color: 0x4682b4, geo: "drill", power: 3.8, speed: 1.8, radius: 2.2 },
+            { id: 4, name: "Gold Chisel", desc: "Fast heavy gold", color: 0xffd700, geo: "chisel", power: 5.5, speed: 2.4, radius: 2.5 },
+            { id: 5, name: "Diamond Pick", desc: "Crystallized diamond", color: 0x00ffff, geo: "pick", power: 7.5, speed: 2.8, radius: 3.0 },
+            { id: 6, name: "Magma Breaker", desc: "Molten lava power", color: 0xff4500, geo: "drill", power: 10.0, speed: 3.2, radius: 3.5 },
+            { id: 7, name: "Plasma Dagger", desc: "Ionized high speed", color: 0x9400d3, geo: "chisel", power: 13.5, speed: 3.8, radius: 4.0 },
+            { id: 8, name: "Void Scythe", desc: "Deepslate destructive", color: 0x111111, geo: "pick", power: 17.5, speed: 4.5, radius: 4.5 },
+            { id: 9, name: "Quantum Beam", desc: "Fast particle laser", color: 0x00ff66, geo: "drill", power: 23.0, speed: 5.5, radius: 5.2 },
+            { id: 10, name: "Galaxy Drill", desc: "Ultimate cosmic drill", color: 0xff00ff, geo: "galaxy", power: 30.0, speed: 7.0, radius: 6.0 }
         ];
 
         let currentToolIndex = 0;
@@ -340,7 +342,7 @@
             const headMat = new THREE.MeshStandardMaterial({ color: data.color, roughness: 0.3, metalness: 0.8 });
 
             if (data.geo === "chisel") {
-                const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.8), handleMat);
+                const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.8, 8), handleMat);
                 handle.rotation.x = Math.PI / 3;
                 group.add(handle);
 
@@ -349,7 +351,7 @@
                 blade.rotation.x = Math.PI / 3;
                 group.add(blade);
             } else if (data.geo === "pick") {
-                const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.2), handleMat);
+                const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.2, 8), handleMat);
                 handle.rotation.x = Math.PI / 4;
                 group.add(handle);
 
@@ -357,18 +359,18 @@
                 head.position.set(0, 0.4, 0.4);
                 group.add(head);
             } else if (data.geo === "drill" || data.geo === "galaxy") {
-                const body = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.2, 0.7), headMat);
+                const body = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.2, 0.7, 12), headMat);
                 body.rotation.x = Math.PI / 2;
                 group.add(body);
 
-                const tip = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.6, 16), 
+                const tip = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.6, 12), 
                     new THREE.MeshStandardMaterial({ color: data.color, emissive: data.color, emissiveIntensity: 0.5 }));
                 tip.rotation.x = -Math.PI / 2;
                 tip.position.set(0, 0, 0.5);
                 group.add(tip);
 
                 if (data.geo === "galaxy") {
-                    const ringGeo = new THREE.TorusGeometry(0.35, 0.04, 16, 100);
+                    const ringGeo = new THREE.TorusGeometry(0.35, 0.04, 8, 24);
                     const ringMat = new THREE.MeshBasicMaterial({ color: 0x00ffff });
                     const ring = new THREE.Mesh(ringGeo, ringMat);
                     ring.position.set(0, 0, 0.2);
@@ -430,9 +432,9 @@
 
             const tool = toolsData[currentToolIndex];
             const now = performance.now();
-            const cooldown = 600 / tool.speed; // Higher speed = shorter cooldown
+            const cooldown = 450 / tool.speed; 
 
-            if (now - lastMineTime < cooldown) return; // Speed check
+            if (now - lastMineTime < cooldown) return; 
 
             mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
             mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
@@ -444,9 +446,9 @@
                 const hitPoint = intersects[0].point;
                 const distToPlayer = playerGroup.position.distanceTo(hitPoint);
 
-                if (distToPlayer <= 5.0) {
+                if (distToPlayer <= 6.5) {
                     lastMineTime = now;
-                    swingAnimTimer = 1.0; // Trigger swing animation
+                    swingAnimTimer = 1.0; 
                     deformGround(hitPoint, tool.power, tool.radius);
                 }
             }
@@ -460,15 +462,30 @@
 
                 const dist = Math.sqrt((vx - center.x) ** 2 + (vz - center.z) ** 2);
                 if (dist < radius) {
-                    // Harder resist depth factor deeper down
-                    const depthHardnessFactor = Math.max(0.3, 1.0 - Math.abs(vy) * 0.03);
-                    const depth = (1 - (dist / radius)) * power * depthHardnessFactor;
+                    // Removed depth restrictions to allow deep digging into lower layers!
+                    const depth = (1 - (dist / radius)) * (power * 0.35);
                     posAttr.setY(i, vy - depth);
                 }
             }
             posAttr.needsUpdate = true;
             updateTerrainColors();
             groundGeometry.computeVertexNormals();
+        }
+
+        // --- TERRAIN HEIGHT SAMPLER FOR PHYSICS ---
+        function getTerrainHeightAt(x, z) {
+            const halfSize = groundSize / 2;
+            const gridX = (x + halfSize) / groundSize * groundSegments;
+            const gridZ = (z + halfSize) / groundSize * groundSegments;
+
+            const ix = Math.floor(Math.max(0, Math.min(groundSegments - 1, gridX)));
+            const iz = Math.floor(Math.max(0, Math.min(groundSegments - 1, gridZ)));
+
+            const index = iz * (groundSegments + 1) + ix;
+            if (index >= 0 && index < posAttr.count) {
+                return posAttr.getY(index);
+            }
+            return 0;
         }
 
         // --- 8. CONTROLS & PHYSICS ---
@@ -496,8 +513,8 @@
         });
 
         let playerVelocityY = 0;
-        const gravity = -0.015;
-        const jumpStrength = 0.35;
+        const gravity = -0.018;
+        const jumpStrength = 0.4;
         let isGrounded = true;
 
         let camYaw = 0;
@@ -521,7 +538,7 @@
 
         window.addEventListener('wheel', e => {
             camDistance += e.deltaY * 0.005;
-            camDistance = Math.max(0, Math.min(25, camDistance));
+            camDistance = Math.max(0, Math.min(30, camDistance));
         });
 
         let currentRotation = 0;
@@ -537,23 +554,26 @@
             grassMaterial.uniforms.time.value = elapsedTime;
             grassMaterial.uniforms.playerPos.value.copy(playerGroup.position);
 
+            const floorY = getTerrainHeightAt(playerGroup.position.x, playerGroup.position.z);
             mineRadiusRing.position.x = playerGroup.position.x;
             mineRadiusRing.position.z = playerGroup.position.z;
+            mineRadiusRing.position.y = floorY + 0.05;
 
-            // Update Layer HUD Text
+            // Dynamic depth metric updating
             const depthMeters = Math.abs(Math.min(0, playerGroup.position.y)).toFixed(1);
             let layerName = "Grass Layer";
-            if (playerGroup.position.y < -20) layerName = "Galaxy Void Layer";
-            else if (playerGroup.position.y < -12) layerName = "Magma Layer";
-            else if (playerGroup.position.y < -6) layerName = "Deepslate Layer";
-            else if (playerGroup.position.y < -2) layerName = "Stone Layer";
+            if (playerGroup.position.y < -60) layerName = "Core Abyss Layer";
+            else if (playerGroup.position.y < -35) layerName = "Galaxy Void Layer";
+            else if (playerGroup.position.y < -15) layerName = "Magma Layer";
+            else if (playerGroup.position.y < -5) layerName = "Deepslate Layer";
+            else if (playerGroup.position.y < -1) layerName = "Stone Layer";
             
             document.getElementById('layer-info').innerText = `Current Depth: -${depthMeters}m (${layerName})`;
 
             if (keys.i) camDistance = Math.max(0, camDistance - 0.2);
-            if (keys.o) camDistance = Math.min(25, camDistance + 0.2);
+            if (keys.o) camDistance = Math.min(30, camDistance + 0.2);
 
-            // JUMPING & GRAVITY COLLISION WITH TERRAIN
+            // JUMPING & GRAVITY DYNAMIC COLLISION WITH MINED TERRAIN
             if (keys.space && isGrounded) {
                 playerVelocityY = jumpStrength;
                 isGrounded = false;
@@ -564,16 +584,18 @@
                 playerVelocityY += gravity;
             }
 
-            // Ground Level Detection based on terrain position
-            if (playerGroup.position.y <= 0) {
-                playerGroup.position.y = 0;
+            // Dynamic floor collision (allows falling into mined shafts)
+            if (playerGroup.position.y <= floorY) {
+                playerGroup.position.y = floorY;
                 playerVelocityY = 0;
                 isGrounded = true;
+            } else {
+                isGrounded = false;
             }
 
             // MOVEMENT & ANIMATION
-            const currentSpeed = keys.shift ? 0.24 : 0.12;
-            const animFrequency = keys.shift ? 0.30 : 0.18;
+            const currentSpeed = keys.shift ? 0.28 : 0.15;
+            const animFrequency = keys.shift ? 0.32 : 0.20;
 
             let inputX = 0;
             let inputZ = 0;
@@ -594,7 +616,7 @@
                 let diff = targetAngle - currentRotation;
                 while (diff < -Math.PI) diff += Math.PI * 2;
                 while (diff > Math.PI) diff -= Math.PI * 2;
-                currentRotation += diff * 0.12;
+                currentRotation += diff * 0.15;
 
                 playerGroup.rotation.y = currentRotation;
 
@@ -610,20 +632,20 @@
                 leftLeg.rotation.x = -swing;
                 rightLeg.rotation.x = swing;
             } else {
-                leftArm.rotation.x = THREE.MathUtils.lerp(leftArm.rotation.x, 0, 0.1);
+                leftArm.rotation.x = THREE.MathUtils.lerp(leftArm.rotation.x, 0, 0.15);
                 
                 if (isToolEquipped) {
-                    rightArm.rotation.x = THREE.MathUtils.lerp(rightArm.rotation.x, -Math.PI / 4, 0.1);
+                    rightArm.rotation.x = THREE.MathUtils.lerp(rightArm.rotation.x, -Math.PI / 4, 0.15);
                 } else {
-                    rightArm.rotation.x = THREE.MathUtils.lerp(rightArm.rotation.x, 0, 0.1);
+                    rightArm.rotation.x = THREE.MathUtils.lerp(rightArm.rotation.x, 0, 0.15);
                 }
-                leftLeg.rotation.x = THREE.MathUtils.lerp(leftLeg.rotation.x, 0, 0.1);
-                rightLeg.rotation.x = THREE.MathUtils.lerp(rightLeg.rotation.x, 0, 0.1);
+                leftLeg.rotation.x = THREE.MathUtils.lerp(leftLeg.rotation.x, 0, 0.15);
+                rightLeg.rotation.x = THREE.MathUtils.lerp(rightLeg.rotation.x, 0, 0.15);
             }
 
-            // Mining Swing Animation Override
+            // Mining Swing Animation
             if (swingAnimTimer > 0) {
-                swingAnimTimer -= 0.1 * toolsData[currentToolIndex].speed;
+                swingAnimTimer -= 0.12 * toolsData[currentToolIndex].speed;
                 rightArm.rotation.x = -Math.PI / 1.5;
             }
 
