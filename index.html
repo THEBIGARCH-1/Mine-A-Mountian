@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fixed Roblox Mechanics + Dense Interactive Grass</title>
+    <title>Fixed Roblox Movement & Smooth Camera</title>
     <style>
         body { margin: 0; overflow: hidden; font-family: sans-serif; user-select: none; }
         #instructions {
@@ -24,7 +24,7 @@
     <div id="instructions">
         WASD to Move | A = Left, D = Right<br>
         Press 'I' to Zoom In | Press 'O' to Zoom Out<br>
-        Right-Click + Drag to Orbit Camera
+        Right-Click + Drag to Rotate Camera View
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -50,8 +50,7 @@
         dirLight.castShadow = true;
         scene.add(dirLight);
 
-        // --- 3. DENSE & SHORTER INTERACTIVE GRASS ---
-        // Shorter grass height (0.6 instead of 1.4)
+        // --- 3. DENSE INTERACTIVE GRASS ---
         const grassGeometry = new THREE.PlaneGeometry(0.1, 0.6, 1, 4);
         grassGeometry.translate(0, 0.3, 0); 
 
@@ -67,23 +66,20 @@
                     vec3 worldPos = (instanceMatrix * vec4(position, 1.0)).xyz;
                     vec3 pos = position;
 
-                    // Light wind sway
+                    // Light wind wave
                     float wave = sin(time * 3.0 + phase) * 0.08 * pow(vHeight, 2.0);
                     pos.x += wave;
 
-                    // Player Trample & Push Outwards Physics
+                    // Trample / Bend Grass Under Feet
                     float dist = distance(worldPos.xz, playerPos.xz);
                     float pushRadius = 1.2;
 
                     if (dist < pushRadius) {
                         float pushFactor = (1.0 - (dist / pushRadius)) * pow(vHeight, 1.2);
-                        vec2 pushDir = normalize(worldPos.xz - playerPos.xz + vec2(0.001)); // Prevent division by zero
+                        vec2 pushDir = normalize(worldPos.xz - playerPos.xz + vec2(0.001));
                         
-                        // Push grass outwards away from feet
                         pos.x += pushDir.x * pushFactor * 0.8;
                         pos.z += pushDir.y * pushFactor * 0.8;
-                        
-                        // Bend down / flatten shorter grass underfoot
                         pos.y -= pushFactor * 0.45;
                     }
 
@@ -107,7 +103,6 @@
             side: THREE.DoubleSide
         });
 
-        // Double the grass count (30,000 blades)
         const grassCount = 30000;
         const grassField = new THREE.InstancedMesh(grassGeometry, grassMaterial, grassCount);
         const dummy = new THREE.Object3D();
@@ -136,7 +131,7 @@
         ground.rotation.x = -Math.PI / 2;
         scene.add(ground);
 
-        // --- 4. PLAYER MODEL ---
+        // --- 4. PLAYER CHARACTER ---
         const playerGroup = new THREE.Group();
         scene.add(playerGroup);
 
@@ -165,7 +160,7 @@
         const leftLeg = createLimb(new THREE.BoxGeometry(0.5, 1.2, 0.5), pantsMat, new THREE.Vector3(-0.35, 0.6, 0));
         const rightLeg = createLimb(new THREE.BoxGeometry(0.5, 1.2, 0.5), pantsMat, new THREE.Vector3(0.35, 0.6, 0));
 
-        // --- 5. CONTROLS, FIXED DIRECTIONS & CAMERA ---
+        // --- 5. FIXED MOVEMENT & STABLE CAMERA ---
         const keys = { w: false, a: false, s: false, d: false, i: false, o: false };
         window.addEventListener('keydown', e => { 
             const key = e.key.toLowerCase();
@@ -211,39 +206,33 @@
             grassMaterial.uniforms.time.value = elapsedTime;
             grassMaterial.uniforms.playerPos.value.copy(playerGroup.position);
 
-            // Zoom In / Zoom Out Controls
+            // Zoom Key Controls
             if (keys.i) camDistance = Math.max(0, camDistance - 0.2);
             if (keys.o) camDistance = Math.min(25, camDistance + 0.2);
 
-            let moveX = 0;
-            let moveZ = 0;
+            // Compute Input Directions
+            let inputX = 0; // Left / Right
+            let inputZ = 0; // Forward / Back
 
-            if (keys.w) moveZ -= 1;
-            if (keys.s) moveZ += 1;
-            if (keys.a) moveX -= 1; // Fixed: A goes Left
-            if (keys.d) moveX += 1; // Fixed: D goes Right
+            if (keys.w) inputZ -= 1;
+            if (keys.s) inputZ += 1;
+            if (keys.a) inputX -= 1; // Straight Left
+            if (keys.d) inputX += 1; // Straight Right
 
-            const isMoving = moveX !== 0 || moveZ !== 0;
+            const isMoving = inputX !== 0 || inputZ !== 0;
 
             if (isMoving) {
-                // Correct direction relative to camera
-                const moveAngle = Math.atan2(moveX, moveZ) + camYaw;
+                // Determine exact movement angle based on inputs & current camera angle
+                const moveAngle = Math.atan2(inputX, inputZ) + camYaw;
 
+                // Move player cleanly along X/Z axis
                 playerGroup.position.x += Math.sin(moveAngle) * speed;
                 playerGroup.position.z += Math.cos(moveAngle) * speed;
 
-                // Smooth player rotation
-                const targetRotation = new THREE.Quaternion();
-                targetRotation.setFromAxisAngle(new THREE.Vector3(0, 1, 0), moveAngle);
-                playerGroup.quaternion.slerp(targetRotation, 0.15);
+                // Turn character face toward movement direction
+                playerGroup.rotation.y = moveAngle;
 
-                // Smooth camera follow (prevents rapid shaking)
-                let angleDiff = moveAngle - camYaw;
-                while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
-                while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
-                camYaw += angleDiff * 0.02; 
-
-                // Limb animation
+                // Leg & Arm Walking Cycle
                 walkTimer += 0.18;
                 const swing = Math.sin(walkTimer) * 0.6;
                 leftArm.rotation.x = swing;
@@ -251,17 +240,17 @@
                 leftLeg.rotation.x = -swing;
                 rightLeg.rotation.x = swing;
             } else {
-                // Idle limb reset
+                // Stand still idle
                 leftArm.rotation.x = THREE.MathUtils.lerp(leftArm.rotation.x, 0, 0.1);
                 rightArm.rotation.x = THREE.MathUtils.lerp(rightArm.rotation.x, 0, 0.1);
                 leftLeg.rotation.x = THREE.MathUtils.lerp(leftLeg.rotation.x, 0, 0.1);
                 rightLeg.rotation.x = THREE.MathUtils.lerp(rightLeg.rotation.x, 0, 0.1);
             }
 
-            // Hide head in First Person
+            // Hide head in 1st Person
             head.visible = camDistance > 0.8;
 
-            // Update Smooth Camera Position
+            // Stable Camera Follow (No auto-steering camera fighting player rotation)
             const targetPos = playerGroup.position.clone().add(new THREE.Vector3(0, 2.4, 0));
 
             const camX = targetPos.x + camDistance * Math.sin(camYaw) * Math.cos(camPitch);
