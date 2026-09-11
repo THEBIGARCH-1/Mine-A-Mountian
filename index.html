@@ -44,7 +44,7 @@
         const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
         const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "high-performance" });
         renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5)); // Capped for smoother FPS
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
         document.body.appendChild(renderer.domElement);
 
         // --- 2. LIGHTS ---
@@ -65,7 +65,6 @@
         scene.add(ground);
 
         // --- 4. OPTIMIZED POINTY GRASS FIELD ---
-        // Ultra-lightweight low-poly triangular pyramid (3 vertices)
         const grassGeometry = new THREE.ConeGeometry(0.08, 0.7, 3);
         grassGeometry.translate(0, 0.35, 0); 
 
@@ -81,11 +80,9 @@
                     vec3 worldPos = (instanceMatrix * vec4(position, 1.0)).xyz;
                     vec3 pos = position;
 
-                    // Lightweight wind motion
                     float wave = sin(time * 2.5 + phase) * 0.07 * pow(vHeight, 2.0);
                     pos.x += wave;
 
-                    // Physical grass displacement near player
                     float dist = distance(worldPos.xz, playerPos.xz);
                     float pushRadius = 1.4;
 
@@ -116,7 +113,7 @@
             }
         });
 
-        const grassCount = 18000; // Optimized count to prevent lag while keeping high density
+        const grassCount = 18000;
         const grassField = new THREE.InstancedMesh(grassGeometry, grassMaterial, grassCount);
         const dummy = new THREE.Object3D();
         const phases = new Float32Array(grassCount);
@@ -137,14 +134,13 @@
         grassGeometry.setAttribute('phase', new THREE.InstancedBufferAttribute(phases, 1));
         scene.add(grassField);
 
-        // --- 5. ROCKS WITH HIGHLIGHTING & GLOW RING ---
+        // --- 5. ROCKS WITH SINGLE-TARGET SHAKE & GLOW RING ---
         const rockGeometry = new THREE.DodecahedronGeometry(1, 1);
         const rockMaterial = new THREE.MeshLambertMaterial({ color: 0x666666, flatShading: true });
         
         const rockCount = 50;
         const rocksList = [];
 
-        // White border ring mesh for proximity detection
         const ringGeo = new THREE.RingGeometry(1.0, 1.25, 32);
         ringGeo.rotateX(-Math.PI / 2);
         const ringMat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide });
@@ -161,11 +157,13 @@
 
             const rockMesh = new THREE.Mesh(rockGeometry, rockMaterial);
             rockMesh.position.set(rx, baseScaleY * 0.4, rz);
-            rockMesh.rotation.set(Math.random() * 0.3, Math.random() * Math.PI, Math.random() * 0.3);
+            const baseRotX = Math.random() * 0.3;
+            const baseRotY = Math.random() * Math.PI;
+            const baseRotZ = Math.random() * 0.3;
+            rockMesh.rotation.set(baseRotX, baseRotY, baseRotZ);
             rockMesh.scale.set(baseScaleX, baseScaleY, baseScaleZ);
             scene.add(rockMesh);
 
-            // Create individual glowing white ring for each rock
             const ringMesh = new THREE.Mesh(ringGeo, ringMat);
             ringMesh.position.set(rx, 0.05, rz);
             const ringRadius = Math.max(baseScaleX, baseScaleZ) * 1.35;
@@ -178,6 +176,8 @@
                 mesh: rockMesh,
                 ring: ringMesh,
                 x: rx, z: rz,
+                baseX: rx, baseZ: rz,
+                baseRotZ: baseRotZ,
                 baseScale: new THREE.Vector3(baseScaleX, baseScaleY, baseScaleZ),
                 radius: boundingRadius
             });
@@ -271,7 +271,6 @@
         let camDistance = 8.0;
         let isMouseDown = false;
 
-        // Support BOTH Left-Click (0) and Right-Click (2) dragging
         window.addEventListener('mousedown', (e) => {
             if (e.button === 0 || e.button === 2) isMouseDown = true;
         });
@@ -323,14 +322,12 @@
             grassMaterial.uniforms.time.value = elapsedTime;
             grassMaterial.uniforms.playerPos.value.copy(playerGroup.position);
 
-            // CAMERA ROTATION VIA ARROW KEYS
             const camRotateSpeed = 0.04;
             if (keys.ArrowLeft) camYaw += camRotateSpeed;
             if (keys.ArrowRight) camYaw -= camRotateSpeed;
             if (keys.ArrowUp) camPitch = Math.min(Math.PI / 2 - 0.1, camPitch + camRotateSpeed);
             if (keys.ArrowDown) camPitch = Math.max(-0.2, camPitch - camRotateSpeed);
 
-            // JUMPING & GRAVITY
             if (keys.space && isGrounded) {
                 playerVelocityY = jumpStrength;
                 isGrounded = false;
@@ -347,8 +344,7 @@
                 isGrounded = true;
             }
 
-            // FASTER MOVEMENT SPEEDS
-            const currentSpeed = keys.shift ? 0.38 : 0.24; // Walk & sprint boosted
+            const currentSpeed = keys.shift ? 0.38 : 0.24;
             const animFrequency = keys.shift ? 0.40 : 0.28;
 
             let inputX = 0;
@@ -391,21 +387,35 @@
                 rightLeg.rotation.x = THREE.MathUtils.lerp(rightLeg.rotation.x, 0, 0.2);
             }
 
-            // PROXIMITY CHECK FOR ROCKS (GLOW RING & GROW EFFECT)
+            // FIND ONLY THE NEAREST ROCK WITHIN INTERACTION RANGE
             const playerPos = playerGroup.position;
-            const highlightDistance = 4.0;
+            const interactionDistance = 4.0;
+            
+            let closestRock = null;
+            let minDistance = interactionDistance;
 
             for (const rock of rocksList) {
                 const dist = Math.hypot(playerPos.x - rock.x, playerPos.z - rock.z);
-                
-                if (dist < highlightDistance) {
+                if (dist < minDistance) {
+                    minDistance = dist;
+                    closestRock = rock;
+                }
+            }
+
+            // UPDATE ROCK STATES (ONLY CLOSEST ONE LIGHTS UP & SHAKES)
+            for (const rock of rocksList) {
+                if (rock === closestRock) {
                     rock.ring.visible = true;
-                    // Slightly expand the rock when near
+                    // Scale up slightly
                     const targetScale = rock.baseScale.clone().multiplyScalar(1.18);
                     rock.mesh.scale.lerp(targetScale, 0.1);
+                    // Shake left and right like mining
+                    const shakeOffset = Math.sin(elapsedTime * 30) * 0.05;
+                    rock.mesh.rotation.z = rock.baseRotZ + shakeOffset;
                 } else {
                     rock.ring.visible = false;
                     rock.mesh.scale.lerp(rock.baseScale, 0.1);
+                    rock.mesh.rotation.z = THREE.MathUtils.lerp(rock.mesh.rotation.z, rock.baseRotZ, 0.1);
                 }
             }
 
