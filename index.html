@@ -3,31 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Roblox Blocky Mountain Mining Simulator - Ultra Detail</title>
+    <title>Blocky Roblox Mountain Mining Simulator</title>
     <style>
-        body { 
-            margin: 0; 
-            overflow: hidden; 
-            font-family: 'Fredoka One', 'Segoe UI', Tahoma, Geneva, sans-serif; 
-            user-select: none;
-            background-color: #000;
-        }
-
-        /* CROSSHAIR */
-        #crosshair {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            width: 12px;
-            height: 12px;
-            margin-top: -6px;
-            margin-left: -6px;
-            border: 2px solid rgba(255, 255, 255, 0.8);
-            border-radius: 50%;
-            pointer-events: none;
-            z-index: 10;
-        }
-
+        body { margin: 0; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; user-select: none; }
+        
         #hud {
             position: absolute;
             top: 20px;
@@ -36,160 +15,153 @@
             flex-direction: column;
             gap: 10px;
             pointer-events: none;
-            z-index: 5;
         }
 
         .hud-box {
-            background: rgba(15, 15, 25, 0.85);
+            background: rgba(0, 0, 0, 0.85);
             color: white;
-            padding: 12px 22px;
-            border-radius: 12px;
+            padding: 12px 20px;
+            border-radius: 10px;
             font-weight: bold;
-            box-shadow: 0 8px 20px rgba(0,0,0,0.4);
-            border: 2px solid rgba(255, 255, 255, 0.15);
-            backdrop-filter: blur(8px);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
         }
 
-        #money-display { color: #55ff55; font-size: 22px; text-shadow: 0 0 10px rgba(85,255,85,0.4); }
-        #inventory-info { color: #ffcc00; font-size: 15px; }
-        #layer-info { color: #00ffff; font-size: 15px; }
+        #money-display { color: #55ff55; font-size: 20px; }
+        #layer-info { color: #00ffcc; font-size: 14px; }
+        #inventory-info { color: #ffcc00; font-size: 14px; }
 
         #sell-btn {
             pointer-events: auto;
-            background: linear-gradient(135deg, #ff9900, #ff5500);
+            background: #ff9900;
             color: white;
-            border: 2px solid #ffffff;
-            padding: 12px 20px;
-            border-radius: 10px;
-            font-size: 18px;
+            border: none;
+            padding: 10px 16px;
+            border-radius: 8px;
+            font-size: 16px;
             font-weight: 800;
             cursor: pointer;
-            transition: transform 0.1s, box-shadow 0.2s;
+            transition: 0.2s;
             text-transform: uppercase;
-            box-shadow: 0 6px 15px rgba(255, 153, 0, 0.5);
+            box-shadow: 0 4px 12px rgba(255, 153, 0, 0.4);
         }
-        #sell-btn:hover { transform: scale(1.05); box-shadow: 0 8px 25px rgba(255, 153, 0, 0.8); }
-        #sell-btn:active { transform: scale(0.95); }
+        #sell-btn:hover { background: #ffaa22; transform: scale(1.05); }
 
         #shop-container {
             position: absolute;
             top: 20px;
             right: 20px;
-            width: 340px;
+            width: 320px;
             max-height: 85vh;
-            background: rgba(15, 15, 25, 0.9);
-            backdrop-filter: blur(12px);
-            border-radius: 16px;
-            border: 2px solid rgba(255, 255, 255, 0.2);
+            background: rgba(20, 20, 20, 0.9);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            border: 2px solid rgba(255, 255, 255, 0.1);
             color: white;
-            padding: 18px;
+            padding: 16px;
             display: flex;
             flex-direction: column;
-            box-shadow: 0 12px 40px rgba(0,0,0,0.6);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
             overflow-y: auto;
-            z-index: 5;
         }
         
         #shop-title {
-            font-size: 22px;
-            font-weight: 900;
+            font-size: 20px;
+            font-weight: 800;
             text-align: center;
-            margin-bottom: 14px;
+            margin-bottom: 12px;
             text-transform: uppercase;
-            letter-spacing: 1.5px;
+            letter-spacing: 1px;
             color: #ffcc00;
-            text-shadow: 0 0 10px rgba(255, 204, 0, 0.5);
         }
 
         .shop-item {
-            background: rgba(255, 255, 255, 0.06);
-            margin-bottom: 10px;
-            padding: 12px 14px;
-            border-radius: 10px;
-            border: 1px solid rgba(255, 255, 255, 0.08);
+            background: rgba(255, 255, 255, 0.08);
+            margin-bottom: 8px;
+            padding: 10px 12px;
+            border-radius: 8px;
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
-        .shop-item:hover { background: rgba(255, 255, 255, 0.12); }
+        .shop-item:hover { background: rgba(255, 255, 255, 0.15); }
         .item-info { display: flex; flex-direction: column; }
-        .item-name { font-weight: bold; font-size: 15px; color: #fff; }
-        .item-stats { font-size: 11px; color: #00ffff; font-weight: bold; margin-top: 3px; }
-        .item-cost { font-size: 13px; color: #55ff55; font-weight: 800; margin-top: 3px; }
+        .item-name { font-weight: bold; font-size: 14px; color: #fff; }
+        .item-stats { font-size: 11px; color: #00ffcc; font-weight: bold; margin-top: 2px; }
+        .item-cost { font-size: 12px; color: #55ff55; font-weight: 800; margin-top: 2px; }
 
         .shop-btn {
             background: #28a745;
             color: white;
             border: none;
-            padding: 8px 14px;
-            border-radius: 8px;
+            padding: 6px 12px;
+            border-radius: 6px;
             font-weight: bold;
             cursor: pointer;
             transition: 0.2s;
         }
         .shop-btn:hover { background: #34ce57; transform: scale(1.05); }
-        .shop-btn.disabled { background: #444; cursor: not-allowed; opacity: 0.5; }
+        .shop-btn.disabled { background: #555; cursor: not-allowed; opacity: 0.6; }
         .shop-btn.active { background: #007bff; cursor: default; }
 
         #instructions {
             position: absolute;
             bottom: 20px;
             left: 20px;
-            background: rgba(0, 0, 0, 0.85);
-            color: #fff;
-            padding: 12px 18px;
-            border-radius: 10px;
-            font-size: 13px;
+            background: rgba(0, 0, 0, 0.8);
+            color: #ddd;
+            padding: 10px 16px;
+            border-radius: 8px;
+            font-size: 12px;
             pointer-events: none;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            z-index: 5;
         }
     </style>
 </head>
 <body>
 
-    <div id="crosshair"></div>
-
     <div id="hud">
         <div class="hud-box" id="money-display">💰 Cash: $0</div>
-        <div class="hud-box" id="inventory-info">🎒 Inventory: 0 Blocks</div>
-        <div class="hud-box" id="layer-info">⛰️ Depth: 0m (Grass Peak)</div>
-        <button id="sell-btn" onclick="sellBlocks()">💰 SELL ALL ORES</button>
+        <div class="hud-box" id="inventory-info">🎒 Blocks Mined: 0</div>
+        <div class="hud-box" id="layer-info">⛰️ Depth: 0m (Grass Mountain)</div>
+        <button id="sell-btn" onclick="sellBlocks()">💰 Sell All Blocks</button>
     </div>
 
     <div id="shop-container">
-        <div id="shop-title">🛠️ TOOL SHOP</div>
+        <div id="shop-title">🛠️ Tool Shop</div>
         <div id="shop-list"></div>
     </div>
 
     <div id="instructions">
-        🎮 <b>CONTROLS:</b><br>
-        • <b>WASD</b>: Move Character | <b>SHIFT</b>: Sprint | <b>SPACE</b>: Jump<br>
-        • <b>DRAG TOUCHPAD/MOUSE</b>: Smooth 360 Camera Rotate<br>
-        • <b>PRESS 'Q' or CLICK</b>: Destroy Target Block!
+        WASD: Move | SHIFT: Sprint | SPACE: Jump | E: Toggle Tool | CLICK Ground: Mine Blocky Terrain
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
     <script>
-        // --- 1. GAME ECONOMY & DATA ---
+        // --- 1. GAME DATA & PLAYER ECONOMY ---
         let playerMoney = 0;
-        let minedInventory = { grass: 0, stone: 0, deepslate: 0, magma: 0, void: 0, gem: 0 };
+        let minedInventory = { grass: 0, stone: 0, deepslate: 0, magma: 0, void: 0 };
         let totalBlocksMined = 0;
 
-        const blockValues = { grass: 2, stone: 8, deepslate: 35, magma: 180, void: 850, gem: 5000 };
+        const blockValues = {
+            grass: 1,
+            stone: 5,
+            deepslate: 25,
+            magma: 120,
+            void: 600
+        };
 
         const toolsData = [
-            { id: 1, name: "Rusty Pick", cost: 0, power: 1, speed: 1.0, radius: 1, color: 0x8b4513 },
-            { id: 2, name: "Heavy Shovel", cost: 250, power: 2, speed: 1.3, radius: 1, color: 0xaaaaaa },
-            { id: 3, name: "Steel Drill", cost: 1800, power: 5, speed: 1.8, radius: 2, color: 0x4682b4 },
-            { id: 4, name: "Gold Excavator", cost: 12000, power: 12, speed: 2.4, radius: 2, color: 0xffd700 },
-            { id: 5, name: "Diamond Breaker", cost: 75000, power: 25, speed: 3.2, radius: 3, color: 0x00ffff },
-            { id: 6, name: "Magma Buster", cost: 400000, power: 55, speed: 4.2, radius: 3, color: 0xff4500 },
-            { id: 7, name: "Plasma Laser", cost: 2200000, power: 110, speed: 5.5, radius: 4, color: 0x9400d3 },
-            { id: 8, name: "Void Smasher", cost: 12000000, power: 250, speed: 7.0, radius: 4, color: 0x111111 },
-            { id: 9, name: "Quantum Beam", cost: 45000000, power: 600, speed: 9.0, radius: 5, color: 0x00ff66 },
-            { id: 10, name: "Galaxy Obliterator", cost: 150000000, power: 1500, speed: 12.0, radius: 6, color: 0xff00ff }
+            { id: 1, name: "Rusty Pick", cost: 0, power: 1, speed: 1.0, radius: 1, color: 0x8b4513, geo: "pick" },
+            { id: 2, name: "Iron Dagger", cost: 150, power: 2, speed: 1.4, radius: 1, color: 0xaaaaaa, geo: "chisel" },
+            { id: 3, name: "Steel Drill", cost: 1200, power: 4, speed: 1.8, radius: 2, color: 0x4682b4, geo: "drill" },
+            { id: 4, name: "Gold Hammer", cost: 8500, power: 8, speed: 2.3, radius: 2, color: 0xffd700, geo: "pick" },
+            { id: 5, name: "Diamond Excavator", cost: 45000, power: 15, speed: 3.0, radius: 3, color: 0x00ffff, geo: "drill" },
+            { id: 6, name: "Magma Buster", cost: 250000, power: 30, speed: 4.0, radius: 3, color: 0xff4500, geo: "chisel" },
+            { id: 7, name: "Plasma Cutter", cost: 1500000, power: 60, speed: 5.2, radius: 4, color: 0x9400d3, geo: "drill" },
+            { id: 8, name: "Void Smasher", cost: 8000000, power: 120, speed: 6.5, radius: 4, color: 0x111111, geo: "pick" },
+            { id: 9, name: "Quantum Annihilator", cost: 25000000, power: 250, speed: 8.0, radius: 5, color: 0x00ff66, geo: "drill" },
+            { id: 10, name: "Galaxy Drill", cost: 50000000, power: 500, speed: 10.0, radius: 6, color: 0xff00ff, geo: "galaxy" }
         ];
 
         let ownedTools = [true, false, false, false, false, false, false, false, false, false];
@@ -197,76 +169,60 @@
         let isToolEquipped = true;
         let lastMineTime = 0;
 
-        // --- 2. SCENE & LIGHTING SETUP ---
+        // --- 2. THREE.JS SCENE SETUP ---
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x6eb1ff);
-        scene.fog = new THREE.FogExp2(0x6eb1ff, 0.005);
+        scene.background = new THREE.Color(0x7ec0ee);
+        scene.fog = new THREE.FogExp2(0x7ec0ee, 0.008);
 
-        const camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.shadowMap.enabled = true;
-        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         document.body.appendChild(renderer.domElement);
 
         const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
         scene.add(ambientLight);
 
-        const dirLight = new THREE.DirectionalLight(0xfffaed, 1.0);
-        dirLight.position.set(60, 120, 60);
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        dirLight.position.set(40, 80, 40);
         dirLight.castShadow = true;
-        dirLight.shadow.mapSize.width = 2048;
-        dirLight.shadow.mapSize.height = 2048;
         scene.add(dirLight);
 
-        // --- 3. HIGH-DETAIL VOXEL MOUNTAIN TERRAIN ---
-        const GRID_SIZE = 48;
-        const BLOCK_SIZE = 1.6;
+        // --- 3. VOXEL BLOCK MOUNTAIN TERRAIN ---
+        const GRID_SIZE = 50;
+        const BLOCK_SIZE = 1.5;
         const terrainMap = new Map();
 
-        // Edge Outlines for Roblox Block Look
-        const boxGeo = new THREE.BoxGeometry(BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
-        const edgesGeo = new THREE.EdgesGeometry(boxGeo);
-        const lineMat = new THREE.LineBasicMaterial({ color: 0x000000, linewidth: 1 });
-
         const blockMaterials = {
-            grass: new THREE.MeshStandardMaterial({ color: 0x388e3c, roughness: 0.8 }),
-            stone: new THREE.MeshStandardMaterial({ color: 0x757575, roughness: 0.6 }),
-            deepslate: new THREE.MeshStandardMaterial({ color: 0x212121, roughness: 0.4 }),
-            magma: new THREE.MeshStandardMaterial({ color: 0xe65100, emissive: 0xff3d00, emissiveIntensity: 0.4 }),
-            void: new THREE.MeshStandardMaterial({ color: 0x4a148c, emissive: 0x7b1fa2, emissiveIntensity: 0.5 }),
-            gem: new THREE.MeshStandardMaterial({ color: 0x00e676, emissive: 0x00e676, emissiveIntensity: 0.8, metalness: 0.9 })
+            grass: new THREE.MeshLambertMaterial({ color: 0x44aa44 }),
+            stone: new THREE.MeshLambertMaterial({ color: 0x777777 }),
+            deepslate: new THREE.MeshLambertMaterial({ color: 0x333339 }),
+            magma: new THREE.MeshLambertMaterial({ color: 0xd34800 }),
+            void: new THREE.MeshLambertMaterial({ color: 0x4b0082 })
         };
 
+        const boxGeo = new THREE.BoxGeometry(BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
         const terrainGroup = new THREE.Group();
         scene.add(terrainGroup);
 
         function getBlockType(y) {
-            if (Math.random() < 0.01) return 'gem'; // Rare shiny gem chance!
             if (y >= 0) return 'grass';
-            if (y >= -8 * BLOCK_SIZE) return 'stone';
-            if (y >= -18 * BLOCK_SIZE) return 'deepslate';
-            if (y >= -30 * BLOCK_SIZE) return 'magma';
+            if (y >= -6 * BLOCK_SIZE) return 'stone';
+            if (y >= -14 * BLOCK_SIZE) return 'deepslate';
+            if (y >= -24 * BLOCK_SIZE) return 'magma';
             return 'void';
         }
 
-        // Generate Detailed Blocky Peak
+        // Generate Blocky Mountain
         for (let x = -GRID_SIZE / 2; x < GRID_SIZE / 2; x++) {
             for (let z = -GRID_SIZE / 2; z < GRID_SIZE / 2; z++) {
                 const distFromCenter = Math.sqrt(x * x + z * z);
-                const mountainHeight = Math.max(0, Math.floor((22 - distFromCenter * 0.95)));
+                const mountainHeight = Math.max(0, Math.floor((20 - distFromCenter * 0.8)));
 
-                for (let y = mountainHeight; y >= -35; y--) {
+                for (let y = mountainHeight; y >= -30; y--) {
                     const blockType = getBlockType(y * BLOCK_SIZE);
                     const mesh = new THREE.Mesh(boxGeo, blockMaterials[blockType]);
                     mesh.position.set(x * BLOCK_SIZE, y * BLOCK_SIZE, z * BLOCK_SIZE);
-                    mesh.castShadow = true;
-                    mesh.receiveShadow = true;
-
-                    // Add Roblox Outlines
-                    const wireframe = new THREE.LineSegments(edgesGeo, lineMat);
-                    mesh.add(wireframe);
-
                     mesh.userData = { gridX: x, gridY: y, gridZ: z, type: blockType, hp: getBlockHp(blockType) };
                     
                     terrainGroup.add(mesh);
@@ -278,57 +234,17 @@
         function getBlockHp(type) {
             switch(type) {
                 case 'grass': return 1;
-                case 'stone': return 4;
-                case 'deepslate': return 12;
-                case 'magma': return 30;
-                case 'void': return 80;
-                case 'gem': return 100;
+                case 'stone': return 3;
+                case 'deepslate': return 8;
+                case 'magma': return 20;
+                case 'void': return 50;
                 default: return 1;
             }
         }
 
-        // Target Highlight Box
-        const highlightBox = new THREE.BoxHelper(new THREE.Mesh(boxGeo), 0xffff00);
-        highlightBox.visible = false;
-        scene.add(highlightBox);
-
-        // --- 4. MINING PARTICLE SYSTEM ---
-        const particles = [];
-        function createMiningParticles(pos, color) {
-            const particleGeo = new THREE.BoxGeometry(0.3, 0.3, 0.3);
-            const particleMat = new THREE.MeshBasicMaterial({ color: color });
-            
-            for (let i = 0; i < 8; i++) {
-                const p = new THREE.Mesh(particleGeo, particleMat);
-                p.position.copy(pos);
-                p.userData.velocity = new THREE.Vector3(
-                    (Math.random() - 0.5) * 0.4,
-                    Math.random() * 0.4 + 0.2,
-                    (Math.random() - 0.5) * 0.4
-                );
-                p.userData.life = 1.0;
-                scene.add(p);
-                particles.push(p);
-            }
-        }
-
-        function updateParticles() {
-            for (let i = particles.length - 1; i >= 0; i--) {
-                const p = particles[i];
-                p.position.add(p.userData.velocity);
-                p.userData.velocity.y -= 0.02; // Gravity
-                p.userData.life -= 0.05;
-                p.scale.multiplyScalar(0.92);
-                if (p.userData.life <= 0) {
-                    scene.remove(p);
-                    particles.splice(i, 1);
-                }
-            }
-        }
-
-        // --- 5. CHARACTER SETUP ---
+        // --- 4. ROBLOX PLAYER CHARACTER ---
         const playerGroup = new THREE.Group();
-        playerGroup.position.set(0, 40, 0);
+        playerGroup.position.set(0, 35, 0);
         scene.add(playerGroup);
 
         const skinMat = new THREE.MeshLambertMaterial({ color: 0xffcc99 });
@@ -358,7 +274,7 @@
         toolContainer.position.set(0, -0.8, 0.2);
         rightArm.add(toolContainer);
 
-        // --- 6. SHOP & UI SYSTEM ---
+        // --- 5. SHOP & ECONOMY SYSTEM ---
         function sellBlocks() {
             let earnings = 0;
             for (let type in minedInventory) {
@@ -376,12 +292,12 @@
             const headMat = new THREE.MeshStandardMaterial({ color: data.color, roughness: 0.2, metalness: 0.8 });
             const handleMat = new THREE.MeshLambertMaterial({ color: 0x3d2314 });
 
-            const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 1.4), handleMat);
+            const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 1.2), handleMat);
             handle.rotation.x = Math.PI / 3;
             group.add(handle);
 
-            const head = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.2, 0.2), headMat);
-            head.position.set(0, 0.5, 0.5);
+            const head = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.2, 0.2), headMat);
+            head.position.set(0, 0.4, 0.4);
             group.add(head);
             return group;
         }
@@ -454,13 +370,13 @@
 
         function updateHUD() {
             document.getElementById('money-display').innerText = `💰 Cash: $${playerMoney.toLocaleString()}`;
-            document.getElementById('inventory-info').innerText = `🎒 Inventory: ${totalBlocksMined} Blocks`;
+            document.getElementById('inventory-info').innerText = `🎒 Mined: ${totalBlocksMined} Blocks`;
             
-            const depth = Math.max(0, Math.floor((35 - playerGroup.position.y))).toFixed(0);
+            const depth = Math.max(0, Math.floor((30 - playerGroup.position.y))).toFixed(0);
             let layerName = "Grass Mountain";
-            if (playerGroup.position.y < -30 * BLOCK_SIZE) layerName = "Galaxy Void Layer";
-            else if (playerGroup.position.y < -18 * BLOCK_SIZE) layerName = "Magma Layer";
-            else if (playerGroup.position.y < -8 * BLOCK_SIZE) layerName = "Deepslate Layer";
+            if (playerGroup.position.y < -24 * BLOCK_SIZE) layerName = "Galaxy Void Layer";
+            else if (playerGroup.position.y < -14 * BLOCK_SIZE) layerName = "Magma Layer";
+            else if (playerGroup.position.y < -6 * BLOCK_SIZE) layerName = "Deepslate Layer";
             else if (playerGroup.position.y < 0) layerName = "Stone Layer";
             
             document.getElementById('layer-info').innerText = `⛰️ Depth: ${depth}m (${layerName})`;
@@ -468,61 +384,32 @@
 
         equipTool(0);
 
-        // --- 7. TOUCHPAD TURNING & Q KEY MINING ---
-        let camYaw = 0, camPitch = 0.3, camDistance = 10.0;
-        let isTouchingOrDragging = false;
-        let previousMousePosition = { x: 0, y: 0 };
-
-        // SMOOTH TOUCHPAD & MOUSE DRAG TURNING
-        window.addEventListener('mousedown', e => {
-            if (e.target.closest('#shop-container') || e.target.closest('#hud')) return;
-            isTouchingOrDragging = true;
-            previousMousePosition = { x: e.clientX, y: e.clientY };
-        });
-
-        window.addEventListener('mousemove', e => {
-            if (isTouchingOrDragging) {
-                const deltaX = e.clientX - previousMousePosition.x;
-                const deltaY = e.clientY - previousMousePosition.y;
-
-                camYaw -= deltaX * 0.006;
-                camPitch += deltaY * 0.006;
-                camPitch = Math.max(-0.2, Math.min(Math.PI / 2 - 0.05, camPitch));
-
-                previousMousePosition = { x: e.clientX, y: e.clientY };
-            }
-        });
-
-        window.addEventListener('mouseup', () => isTouchingOrDragging = false);
-
-        // RAYCASTING FOR TARGET HIGHLIGHT & MINING
+        // --- 6. FAST BLOCKY MINING ---
         const raycaster = new THREE.Raycaster();
-        let currentTargetBlock = null;
+        const mouse = new THREE.Vector2();
 
-        function updateTargeting() {
-            raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
-            const intersects = raycaster.intersectObjects(terrainGroup.children);
-
-            if (intersects.length > 0 && intersects[0].distance <= 14) {
-                currentTargetBlock = intersects[0].object;
-                highlightBox.visible = true;
-                highlightBox.update(currentTargetBlock);
-            } else {
-                currentTargetBlock = null;
-                highlightBox.visible = false;
-            }
-        }
-
-        function triggerDestroy() {
-            if (!isToolEquipped || !currentTargetBlock) return;
+        window.addEventListener('click', (e) => {
+            if (e.target.closest('#shop-container') || e.target.closest('#sell-btn')) return;
+            if (!isToolEquipped) return;
 
             const tool = toolsData[currentToolIndex];
             const now = performance.now();
-            if (now - lastMineTime < 350 / tool.speed) return;
+            if (now - lastMineTime < 400 / tool.speed) return;
 
-            lastMineTime = now;
-            mineVoxelRadius(currentTargetBlock.userData.gridX, currentTargetBlock.userData.gridY, currentTargetBlock.userData.gridZ, tool.power, tool.radius);
-        }
+            mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(terrainGroup.children);
+
+            if (intersects.length > 0) {
+                const targetBlock = intersects[0].object;
+                if (playerGroup.position.distanceTo(targetBlock.position) <= 12) {
+                    lastMineTime = now;
+                    mineVoxelRadius(targetBlock.userData.gridX, targetBlock.userData.gridY, targetBlock.userData.gridZ, tool.power, tool.radius);
+                }
+            }
+        });
 
         function mineVoxelRadius(cx, cy, cz, power, radius) {
             for (let x = -radius; x <= radius; x++) {
@@ -534,7 +421,6 @@
                             if (block) {
                                 block.userData.hp -= power;
                                 if (block.userData.hp <= 0) {
-                                    createMiningParticles(block.position, block.material.color);
                                     minedInventory[block.userData.type]++;
                                     totalBlocksMined++;
                                     terrainGroup.remove(block);
@@ -549,13 +435,11 @@
             updateShopUI();
         }
 
-        // --- 8. KEYBOARD & MOVEMENT ---
+        // --- 7. PLAYER CONTROLS & CAMERA ---
         const keys = { w: false, a: false, s: false, d: false, space: false, shift: false };
-
         window.addEventListener('keydown', e => {
             if (e.code === "Space") keys.space = true;
             if (e.key === "Shift" || e.code === "ShiftLeft") keys.shift = true;
-            if (e.key.toLowerCase() === 'q') triggerDestroy(); // 'Q' KEY DESTROY
             if (e.key.toLowerCase() === 'e') {
                 isToolEquipped = !isToolEquipped;
                 toolContainer.visible = isToolEquipped;
@@ -572,22 +456,32 @@
             if (keys.hasOwnProperty(key)) keys[key] = false;
         });
 
-        window.addEventListener('click', (e) => {
-            if (e.target.closest('#shop-container') || e.target.closest('#hud')) return;
-            triggerDestroy();
+        let camYaw = 0, camPitch = 0.3, camDistance = 10.0;
+        let isRightMouseDown = false;
+
+        window.addEventListener('mousedown', e => { if (e.button === 2) isRightMouseDown = true; });
+        window.addEventListener('mouseup', () => isRightMouseDown = false);
+        window.addEventListener('contextmenu', e => e.preventDefault());
+        window.addEventListener('mousemove', e => {
+            if (isRightMouseDown) {
+                camYaw -= e.movementX * 0.005;
+                camPitch += e.movementY * 0.005;
+                camPitch = Math.max(-0.2, Math.min(Math.PI / 2 - 0.1, camPitch));
+            }
         });
 
         let playerVelocityY = 0;
         let isGrounded = false;
 
-        // --- 9. MAIN GAME LOOP ---
+        // --- 8. MAIN GAME LOOP ---
         function animate() {
             requestAnimationFrame(animate);
 
-            // Gravity & Ground Physics
+            // Gravity & Simple Surface Raycast Collision
             playerVelocityY -= 0.015;
             playerGroup.position.y += playerVelocityY;
 
+            // Simple floor collision check
             const pGx = Math.round(playerGroup.position.x / BLOCK_SIZE);
             const pGy = Math.round((playerGroup.position.y - 0.5) / BLOCK_SIZE);
             const pGz = Math.round(playerGroup.position.z / BLOCK_SIZE);
@@ -601,11 +495,11 @@
             }
 
             if (keys.space && isGrounded) {
-                playerVelocityY = 0.38;
+                playerVelocityY = 0.35;
                 isGrounded = false;
             }
 
-            const currentSpeed = keys.shift ? 0.32 : 0.16;
+            const currentSpeed = keys.shift ? 0.3 : 0.15;
             let inputX = 0, inputZ = 0;
             if (keys.w) inputZ -= 1;
             if (keys.s) inputZ += 1;
@@ -619,7 +513,7 @@
                 playerGroup.rotation.y = targetAngle;
             }
 
-            // Smooth Camera Follow
+            // Camera Tracking
             const targetPos = playerGroup.position.clone().add(new THREE.Vector3(0, 2, 0));
             camera.position.set(
                 targetPos.x + camDistance * Math.sin(camYaw) * Math.cos(camPitch),
@@ -628,10 +522,7 @@
             );
             camera.lookAt(targetPos);
 
-            updateTargeting();
-            updateParticles();
             updateHUD();
-
             renderer.render(scene, camera);
         }
 
