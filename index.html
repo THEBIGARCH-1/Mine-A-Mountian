@@ -3,28 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fixed Roblox Movement & Smooth Camera</title>
+    <title>Roblox Touchpad Mechanics + Massive Grass Field</title>
     <style>
         body { margin: 0; overflow: hidden; font-family: sans-serif; user-select: none; }
         #instructions {
             position: absolute;
             top: 20px;
             left: 20px;
-            background: rgba(0, 0, 0, 0.7);
+            background: rgba(0, 0, 0, 0.75);
             color: white;
             padding: 12px 20px;
             border-radius: 8px;
             font-weight: bold;
             pointer-events: none;
+            line-height: 1.5;
         }
     </style>
 </head>
 <body>
 
     <div id="instructions">
-        WASD to Move | A = Left, D = Right<br>
-        Press 'I' to Zoom In | Press 'O' to Zoom Out<br>
-        Right-Click + Drag to Rotate Camera View
+        WASD to Move<br>
+        Touchpad / Mouse: Right-Click + Drag OR Left-Click + Drag to Rotate Camera<br>
+        Press 'I' to Zoom In | Press 'O' to Zoom Out
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -33,7 +34,7 @@
         // --- 1. SCENE SETUP ---
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x87ceeb);
-        scene.fog = new THREE.FogExp2(0x87ceeb, 0.015);
+        scene.fog = new THREE.FogExp2(0x87ceeb, 0.012);
 
         const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
         const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -50,7 +51,7 @@
         dirLight.castShadow = true;
         scene.add(dirLight);
 
-        // --- 3. DENSE INTERACTIVE GRASS ---
+        // --- 3. MASSIVE 60,000 BLADE INTERACTIVE GRASS ---
         const grassGeometry = new THREE.PlaneGeometry(0.1, 0.6, 1, 4);
         grassGeometry.translate(0, 0.3, 0); 
 
@@ -70,7 +71,7 @@
                     float wave = sin(time * 3.0 + phase) * 0.08 * pow(vHeight, 2.0);
                     pos.x += wave;
 
-                    // Trample / Bend Grass Under Feet
+                    // Trample / Push Grass Under Feet
                     float dist = distance(worldPos.xz, playerPos.xz);
                     float pushRadius = 1.2;
 
@@ -103,16 +104,17 @@
             side: THREE.DoubleSide
         });
 
-        const grassCount = 30000;
+        // 60,000 Grass Blades
+        const grassCount = 60000;
         const grassField = new THREE.InstancedMesh(grassGeometry, grassMaterial, grassCount);
         const dummy = new THREE.Object3D();
         const phases = new Float32Array(grassCount);
 
         for (let i = 0; i < grassCount; i++) {
             dummy.position.set(
-                (Math.random() - 0.5) * 80,
+                (Math.random() - 0.5) * 100,
                 0,
-                (Math.random() - 0.5) * 80
+                (Math.random() - 0.5) * 100
             );
             dummy.rotation.y = Math.random() * Math.PI * 2;
             const scale = 0.8 + Math.random() * 0.4;
@@ -125,7 +127,7 @@
         scene.add(grassField);
 
         const ground = new THREE.Mesh(
-            new THREE.PlaneGeometry(100, 100),
+            new THREE.PlaneGeometry(120, 120),
             new THREE.MeshLambertMaterial({ color: 0x1e4112 })
         );
         ground.rotation.x = -Math.PI / 2;
@@ -160,7 +162,7 @@
         const leftLeg = createLimb(new THREE.BoxGeometry(0.5, 1.2, 0.5), pantsMat, new THREE.Vector3(-0.35, 0.6, 0));
         const rightLeg = createLimb(new THREE.BoxGeometry(0.5, 1.2, 0.5), pantsMat, new THREE.Vector3(0.35, 0.6, 0));
 
-        // --- 5. FIXED MOVEMENT & STABLE CAMERA ---
+        // --- 5. CONTROLS & TOUCHPAD CAMERA MECHANICS ---
         const keys = { w: false, a: false, s: false, d: false, i: false, o: false };
         window.addEventListener('keydown', e => { 
             const key = e.key.toLowerCase();
@@ -174,14 +176,17 @@
         let camYaw = 0;
         let camPitch = 0.3;
         let camDistance = 8.0;
-        let isRightMouseDown = false;
+        let isDragging = false;
 
-        window.addEventListener('mousedown', e => { if (e.button === 0 || e.button === 2) isRightMouseDown = true; });
-        window.addEventListener('mouseup', () => isRightMouseDown = false);
+        // Support both mouse clicks and touchpad click-drag
+        window.addEventListener('mousedown', e => { 
+            isDragging = true;
+        });
+        window.addEventListener('mouseup', () => isDragging = false);
         window.addEventListener('contextmenu', e => e.preventDefault());
 
         window.addEventListener('mousemove', e => {
-            if (isRightMouseDown) {
+            if (isDragging) {
                 camYaw -= e.movementX * 0.005;
                 camPitch += e.movementY * 0.005;
                 camPitch = Math.max(-0.2, Math.min(Math.PI / 2 - 0.1, camPitch));
@@ -210,29 +215,24 @@
             if (keys.i) camDistance = Math.max(0, camDistance - 0.2);
             if (keys.o) camDistance = Math.min(25, camDistance + 0.2);
 
-            // Compute Input Directions
-            let inputX = 0; // Left / Right
-            let inputZ = 0; // Forward / Back
+            let inputX = 0;
+            let inputZ = 0;
 
             if (keys.w) inputZ -= 1;
             if (keys.s) inputZ += 1;
-            if (keys.a) inputX -= 1; // Straight Left
-            if (keys.d) inputX += 1; // Straight Right
+            if (keys.a) inputX -= 1;
+            if (keys.d) inputX += 1;
 
             const isMoving = inputX !== 0 || inputZ !== 0;
 
             if (isMoving) {
-                // Determine exact movement angle based on inputs & current camera angle
                 const moveAngle = Math.atan2(inputX, inputZ) + camYaw;
 
-                // Move player cleanly along X/Z axis
                 playerGroup.position.x += Math.sin(moveAngle) * speed;
                 playerGroup.position.z += Math.cos(moveAngle) * speed;
 
-                // Turn character face toward movement direction
                 playerGroup.rotation.y = moveAngle;
 
-                // Leg & Arm Walking Cycle
                 walkTimer += 0.18;
                 const swing = Math.sin(walkTimer) * 0.6;
                 leftArm.rotation.x = swing;
@@ -240,17 +240,14 @@
                 leftLeg.rotation.x = -swing;
                 rightLeg.rotation.x = swing;
             } else {
-                // Stand still idle
                 leftArm.rotation.x = THREE.MathUtils.lerp(leftArm.rotation.x, 0, 0.1);
                 rightArm.rotation.x = THREE.MathUtils.lerp(rightArm.rotation.x, 0, 0.1);
                 leftLeg.rotation.x = THREE.MathUtils.lerp(leftLeg.rotation.x, 0, 0.1);
                 rightLeg.rotation.x = THREE.MathUtils.lerp(rightLeg.rotation.x, 0, 0.1);
             }
 
-            // Hide head in 1st Person
             head.visible = camDistance > 0.8;
 
-            // Stable Camera Follow (No auto-steering camera fighting player rotation)
             const targetPos = playerGroup.position.clone().add(new THREE.Vector3(0, 2.4, 0));
 
             const camX = targetPos.x + camDistance * Math.sin(camYaw) * Math.cos(camPitch);
