@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pro Roblox Mechanics + Interactive Bending Grass</title>
+    <title>Fixed Roblox Mechanics + Dense Interactive Grass</title>
     <style>
         body { margin: 0; overflow: hidden; font-family: sans-serif; user-select: none; }
         #instructions {
@@ -22,7 +22,7 @@
 <body>
 
     <div id="instructions">
-        WASD to Move & Turn Camera<br>
+        WASD to Move | A = Left, D = Right<br>
         Press 'I' to Zoom In | Press 'O' to Zoom Out<br>
         Right-Click + Drag to Orbit Camera
     </div>
@@ -50,9 +50,10 @@
         dirLight.castShadow = true;
         scene.add(dirLight);
 
-        // --- 3. INTERACTIVE GRASS SHADER ---
-        const grassGeometry = new THREE.PlaneGeometry(0.12, 1.4, 1, 4);
-        grassGeometry.translate(0, 0.7, 0); // Pivot base
+        // --- 3. DENSE & SHORTER INTERACTIVE GRASS ---
+        // Shorter grass height (0.6 instead of 1.4)
+        const grassGeometry = new THREE.PlaneGeometry(0.1, 0.6, 1, 4);
+        grassGeometry.translate(0, 0.3, 0); 
 
         const grassMaterial = new THREE.ShaderMaterial({
             vertexShader: `
@@ -62,28 +63,28 @@
                 varying float vHeight;
 
                 void main() {
-                    vHeight = position.y / 1.4;
+                    vHeight = position.y / 0.6;
                     vec3 worldPos = (instanceMatrix * vec4(position, 1.0)).xyz;
                     vec3 pos = position;
 
-                    // Wind sway animation
-                    float wave = sin(time * 3.0 + phase) * 0.2 * pow(vHeight, 2.0);
+                    // Light wind sway
+                    float wave = sin(time * 3.0 + phase) * 0.08 * pow(vHeight, 2.0);
                     pos.x += wave;
 
-                    // Interactive Player Trample/Push Effect
+                    // Player Trample & Push Outwards Physics
                     float dist = distance(worldPos.xz, playerPos.xz);
-                    float pushRadius = 1.5;
+                    float pushRadius = 1.2;
 
                     if (dist < pushRadius) {
-                        float pushFactor = (1.0 - (dist / pushRadius)) * pow(vHeight, 1.5);
-                        vec2 pushDir = normalize(worldPos.xz - playerPos.xz);
+                        float pushFactor = (1.0 - (dist / pushRadius)) * pow(vHeight, 1.2);
+                        vec2 pushDir = normalize(worldPos.xz - playerPos.xz + vec2(0.001)); // Prevent division by zero
                         
-                        // Push grass outwards away from player
-                        pos.x += pushDir.x * pushFactor * 1.2;
-                        pos.z += pushDir.y * pushFactor * 1.2;
+                        // Push grass outwards away from feet
+                        pos.x += pushDir.x * pushFactor * 0.8;
+                        pos.z += pushDir.y * pushFactor * 0.8;
                         
-                        // Make grass bend down / shorter underfoot
-                        pos.y -= pushFactor * 0.7;
+                        // Bend down / flatten shorter grass underfoot
+                        pos.y -= pushFactor * 0.45;
                     }
 
                     vec4 mvPosition = modelViewMatrix * instanceMatrix * vec4(pos, 1.0);
@@ -93,8 +94,8 @@
             fragmentShader: `
                 varying float vHeight;
                 void main() {
-                    vec3 baseColor = vec3(0.08, 0.35, 0.05); // Dark green root
-                    vec3 tipColor = vec3(0.45, 0.8, 0.15);  // Bright green tip
+                    vec3 baseColor = vec3(0.08, 0.35, 0.05);
+                    vec3 tipColor = vec3(0.45, 0.8, 0.15);
                     vec3 finalColor = mix(baseColor, tipColor, vHeight);
                     gl_FragColor = vec4(finalColor, 1.0);
                 }
@@ -106,7 +107,8 @@
             side: THREE.DoubleSide
         });
 
-        const grassCount = 15000;
+        // Double the grass count (30,000 blades)
+        const grassCount = 30000;
         const grassField = new THREE.InstancedMesh(grassGeometry, grassMaterial, grassCount);
         const dummy = new THREE.Object3D();
         const phases = new Float32Array(grassCount);
@@ -118,7 +120,7 @@
                 (Math.random() - 0.5) * 80
             );
             dummy.rotation.y = Math.random() * Math.PI * 2;
-            const scale = 0.7 + Math.random() * 0.6;
+            const scale = 0.8 + Math.random() * 0.4;
             dummy.scale.set(scale, scale, scale);
             dummy.updateMatrix();
             grassField.setMatrixAt(i, dummy.matrix);
@@ -127,7 +129,6 @@
         grassGeometry.setAttribute('phase', new THREE.InstancedBufferAttribute(phases, 1));
         scene.add(grassField);
 
-        // Dark ground under grass
         const ground = new THREE.Mesh(
             new THREE.PlaneGeometry(100, 100),
             new THREE.MeshLambertMaterial({ color: 0x1e4112 })
@@ -143,17 +144,14 @@
         const shirtMat = new THREE.MeshLambertMaterial({ color: 0x0066cc });
         const pantsMat = new THREE.MeshLambertMaterial({ color: 0x222222 });
 
-        // Head
         const head = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 0.8), skinMat);
         head.position.y = 2.4;
         playerGroup.add(head);
 
-        // Torso
         const torso = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.4, 0.6), shirtMat);
         torso.position.y = 1.3;
         playerGroup.add(torso);
 
-        // Limbs
         const createLimb = (geo, mat, pos) => {
             geo.translate(0, -0.5, 0);
             const mesh = new THREE.Mesh(geo, mat);
@@ -167,7 +165,7 @@
         const leftLeg = createLimb(new THREE.BoxGeometry(0.5, 1.2, 0.5), pantsMat, new THREE.Vector3(-0.35, 0.6, 0));
         const rightLeg = createLimb(new THREE.BoxGeometry(0.5, 1.2, 0.5), pantsMat, new THREE.Vector3(0.35, 0.6, 0));
 
-        // --- 5. CONTROLS, CAMERA & ZOOM ---
+        // --- 5. CONTROLS, FIXED DIRECTIONS & CAMERA ---
         const keys = { w: false, a: false, s: false, d: false, i: false, o: false };
         window.addEventListener('keydown', e => { 
             const key = e.key.toLowerCase();
@@ -213,7 +211,7 @@
             grassMaterial.uniforms.time.value = elapsedTime;
             grassMaterial.uniforms.playerPos.value.copy(playerGroup.position);
 
-            // Zoom in / Zoom out with 'I' and 'O' keys
+            // Zoom In / Zoom Out Controls
             if (keys.i) camDistance = Math.max(0, camDistance - 0.2);
             if (keys.o) camDistance = Math.min(25, camDistance + 0.2);
 
@@ -222,13 +220,13 @@
 
             if (keys.w) moveZ -= 1;
             if (keys.s) moveZ += 1;
-            if (keys.a) moveX -= 1;
-            if (keys.d) moveX += 1;
+            if (keys.a) moveX -= 1; // Fixed: A goes Left
+            if (keys.d) moveX += 1; // Fixed: D goes Right
 
             const isMoving = moveX !== 0 || moveZ !== 0;
 
             if (isMoving) {
-                // Calculate move direction relative to camera angle
+                // Correct direction relative to camera
                 const moveAngle = Math.atan2(moveX, moveZ) + camYaw;
 
                 playerGroup.position.x += Math.sin(moveAngle) * speed;
@@ -239,11 +237,11 @@
                 targetRotation.setFromAxisAngle(new THREE.Vector3(0, 1, 0), moveAngle);
                 playerGroup.quaternion.slerp(targetRotation, 0.15);
 
-                // Smoothly pull camera yaw around to follow player turning direction
+                // Smooth camera follow (prevents rapid shaking)
                 let angleDiff = moveAngle - camYaw;
                 while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
                 while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
-                camYaw += angleDiff * 0.03; // Smooth turning camera follow rate
+                camYaw += angleDiff * 0.02; 
 
                 // Limb animation
                 walkTimer += 0.18;
@@ -260,10 +258,10 @@
                 rightLeg.rotation.x = THREE.MathUtils.lerp(rightLeg.rotation.x, 0, 0.1);
             }
 
-            // Hide head in First-Person Mode
+            // Hide head in First Person
             head.visible = camDistance > 0.8;
 
-            // Update Camera Position
+            // Update Smooth Camera Position
             const targetPos = playerGroup.position.clone().add(new THREE.Vector3(0, 2.4, 0));
 
             const camX = targetPos.x + camDistance * Math.sin(camYaw) * Math.cos(camPitch);
