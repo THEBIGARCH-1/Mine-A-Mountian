@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Roblox Grass & Rocks Field</title>
+    <title>Roblox Mining Simulator</title>
     <style>
         body { 
             margin: 0; 
@@ -24,14 +24,29 @@
             line-height: 1.6;
             box-shadow: 0 4px 10px rgba(0,0,0,0.3);
         }
+        #ui-hud {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 18px;
+            font-weight: bold;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        }
     </style>
 </head>
 <body>
 
     <div id="instructions">
         WASD: Fast Move | SHIFT: Sprint | SPACE: Jump<br>
-        LEFT / RIGHT-CLICK & Drag OR ARROWS: Rotate Camera | Scroll: Zoom
+        LEFT / RIGHT-CLICK & Drag OR ARROWS: Rotate Camera | Scroll: Zoom<br>
+        <strong>Press 'E'</strong> near a shaking rock to Mine / Collect Gem!
     </div>
+
+    <div id="ui-hud">Gems: <span id="gem-count">0</span> 💎</div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
@@ -134,9 +149,15 @@
         grassGeometry.setAttribute('phase', new THREE.InstancedBufferAttribute(phases, 1));
         scene.add(grassField);
 
-        // --- 5. ROCKS WITH SINGLE-TARGET SHAKE & GLOW RING ---
-        const rockGeometry = new THREE.DodecahedronGeometry(1, 1);
-        const rockMaterial = new THREE.MeshLambertMaterial({ color: 0x666666, flatShading: true });
+        // --- 5. DETAILED ROCKS & DYNAMIC ENTITIES ---
+        // Detailed, faceted custom rock geometry (Icosahedron with flat shading)
+        const detailedRockGeo = new THREE.IcosahedronGeometry(1, 1);
+        const rockMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x555555, 
+            roughness: 0.9, 
+            metalness: 0.1, 
+            flatShading: true 
+        });
         
         const rockCount = 50;
         const rocksList = [];
@@ -151,12 +172,12 @@
             
             if (Math.hypot(rx, rz) < 6) { rx += 10; rz += 10; }
 
-            const baseScaleX = 0.7 + Math.random() * 0.8;
-            const baseScaleY = 0.6 + Math.random() * 0.7;
-            const baseScaleZ = 0.7 + Math.random() * 0.8;
+            const baseScaleX = 0.8 + Math.random() * 0.8;
+            const baseScaleY = 0.7 + Math.random() * 0.7;
+            const baseScaleZ = 0.8 + Math.random() * 0.8;
 
-            const rockMesh = new THREE.Mesh(rockGeometry, rockMaterial);
-            rockMesh.position.set(rx, baseScaleY * 0.4, rz);
+            const rockMesh = new THREE.Mesh(detailedRockGeo, rockMaterial);
+            rockMesh.position.set(rx, baseScaleY * 0.5, rz);
             const baseRotX = Math.random() * 0.3;
             const baseRotY = Math.random() * Math.PI;
             const baseRotZ = Math.random() * 0.3;
@@ -177,13 +198,18 @@
                 ring: ringMesh,
                 x: rx, z: rz,
                 baseX: rx, baseZ: rz,
+                baseY: baseScaleY * 0.5,
                 baseRotZ: baseRotZ,
                 baseScale: new THREE.Vector3(baseScaleX, baseScaleY, baseScaleZ),
-                radius: boundingRadius
+                radius: boundingRadius,
+                state: 'intact', // intact -> rising -> shattered -> gem
+                gem: null,
+                shards: [],
+                riseProgress: 0
             });
         }
 
-        // --- 6. ROBLOX FACE & BACON HAIR CHARACTER ---
+        // --- 6. ROBLOX CHARACTER & INVENTORY BACKPACK ---
         const canvas = document.createElement('canvas');
         canvas.width = 128; canvas.height = 128;
         const ctx = canvas.getContext('2d');
@@ -204,6 +230,7 @@
         const shirtMat = new THREE.MeshLambertMaterial({ color: 0x0066cc });
         const pantsMat = new THREE.MeshLambertMaterial({ color: 0x222222 });
         const baconHairMat = new THREE.MeshLambertMaterial({ color: 0x5a2d0c });
+        const backpackMat = new THREE.MeshLambertMaterial({ color: 0x8b4513 }); // Brown leather backpack
 
         const headGroup = new THREE.Group();
         headGroup.position.y = 2.4;
@@ -225,6 +252,11 @@
         torso.position.y = 1.3;
         playerGroup.add(torso);
 
+        // Inventory Backpack attached to the back of the torso
+        const backpack = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.9, 0.4), backpackMat);
+        backpack.position.set(0, 1.3, -0.45);
+        playerGroup.add(backpack);
+
         const createLimb = (geo, mat, pos) => {
             geo.translate(0, -0.5, 0);
             const mesh = new THREE.Mesh(geo, mat);
@@ -242,12 +274,13 @@
         const keys = { 
             w: false, a: false, s: false, d: false, 
             ArrowLeft: false, ArrowRight: false, ArrowUp: false, ArrowDown: false,
-            space: false, shift: false 
+            space: false, shift: false, e: false
         };
         
         window.addEventListener('keydown', e => { 
             if (e.code === "Space") keys.space = true;
             if (e.key === "Shift" || e.code === "ShiftLeft") keys.shift = true;
+            if (e.key.toLowerCase() === "e") keys.e = true;
             if (keys.hasOwnProperty(e.key)) keys[e.key] = true;
             const key = e.key.toLowerCase();
             if (keys.hasOwnProperty(key)) keys[key] = true; 
@@ -256,7 +289,8 @@
         window.addEventListener('keyup', e => { 
             if (e.code === "Space") keys.space = false;
             if (e.key === "Shift" || e.code === "ShiftLeft") keys.shift = false;
-            if (keys.hasOwnProperty(e.key)) keys[e.key] = false;
+            if (e.key.toLowerCase() === "e") keys.e = false;
+            if (keys.hasOwnProperty(e.key)) keys.label = false;
             const key = e.key.toLowerCase();
             if (keys.hasOwnProperty(key)) keys[key] = false; 
         });
@@ -270,6 +304,10 @@
         let camPitch = 0.3;
         let camDistance = 8.0;
         let isMouseDown = false;
+        let gemCount = 0;
+
+        // Active animations tracking collection flight path
+        const flyingGems = [];
 
         window.addEventListener('mousedown', (e) => {
             if (e.button === 0 || e.button === 2) isMouseDown = true;
@@ -296,6 +334,7 @@
         function resolveRockCollision(newX, newZ) {
             const playerRadius = 0.6;
             for (const rock of rocksList) {
+                if (rock.state === 'shattered' || rock.state === 'collected') continue;
                 const dx = newX - rock.x;
                 const dz = newZ - rock.z;
                 const dist = Math.hypot(dx, dz);
@@ -387,7 +426,7 @@
                 rightLeg.rotation.x = THREE.MathUtils.lerp(rightLeg.rotation.x, 0, 0.2);
             }
 
-            // FIND ONLY THE NEAREST ROCK WITHIN INTERACTION RANGE
+            // FIND CLOSEST ROCK FOR INTERACTION
             const playerPos = playerGroup.position;
             const interactionDistance = 4.0;
             
@@ -395,6 +434,7 @@
             let minDistance = interactionDistance;
 
             for (const rock of rocksList) {
+                if (rock.state === 'collected') continue;
                 const dist = Math.hypot(playerPos.x - rock.x, playerPos.z - rock.z);
                 if (dist < minDistance) {
                     minDistance = dist;
@@ -402,20 +442,122 @@
                 }
             }
 
-            // UPDATE ROCK STATES (ONLY CLOSEST ONE LIGHTS UP & SHAKES)
+            // HANDLE ROCK STATES & MINING MECHANICS
             for (const rock of rocksList) {
                 if (rock === closestRock) {
-                    rock.ring.visible = true;
-                    // Scale up slightly
-                    const targetScale = rock.baseScale.clone().multiplyScalar(1.18);
-                    rock.mesh.scale.lerp(targetScale, 0.1);
-                    // Shake left and right like mining
-                    const shakeOffset = Math.sin(elapsedTime * 30) * 0.05;
-                    rock.mesh.rotation.z = rock.baseRotZ + shakeOffset;
+                    if (rock.state === 'intact') {
+                        rock.ring.visible = true;
+                        const targetScale = rock.baseScale.clone().multiplyScalar(1.18);
+                        rock.mesh.scale.lerp(targetScale, 0.1);
+                        const shakeOffset = Math.sin(elapsedTime * 35) * 0.05;
+                        rock.mesh.rotation.z = rock.baseRotZ + shakeOffset;
+
+                        // PRESS 'E' TO TRIGGER MINING RISE & SHATTER
+                        if (keys.e) {
+                            rock.state = 'rising';
+                            rock.ring.visible = false;
+                        }
+                    } else if (rock.state === 'rising') {
+                        // Rising animation out of ground
+                        rock.riseProgress += 0.05;
+                        rock.mesh.position.y = rock.baseY + Math.min(rock.riseProgress * 1.5, 2.0);
+                        
+                        if (rock.riseProgress >= 1.0) {
+                            rock.state = 'shattered';
+                            rock.mesh.visible = false; // Hide intact rock
+
+                            // Spawn Rock Shards falling apart
+                            const shardGeo = new THREE.TetrahedronGeometry(0.3, 0);
+                            for (let s = 0; s < 6; s++) {
+                                const shard = new THREE.Mesh(shardGeo, rockMaterial);
+                                shard.position.copy(rock.mesh.position);
+                                shard.userData = {
+                                    vel: new THREE.Vector3(
+                                        (Math.random() - 0.5) * 0.25,
+                                        Math.random() * 0.2 + 0.1,
+                                        (Math.random() - 0.5) * 0.25
+                                    ),
+                                    rotSpeed: new THREE.Vector3(Math.random(), Math.random(), Math.random())
+                                };
+                                scene.add(shard);
+                                rock.shards.push(shard);
+                            }
+
+                            // Spawn Levitating Emerald Gem
+                            const gemGeo = new THREE.OctahedronGeometry(0.4, 0);
+                            const gemMat = new THREE.MeshStandardMaterial({ 
+                                color: 0x00ffcc, 
+                                emissive: 0x00aa88, 
+                                roughness: 0.2, 
+                                metalness: 0.8 
+                            });
+                            const gemMesh = new THREE.Mesh(gemGeo, gemMat);
+                            gemMesh.position.set(rock.x, rock.baseY + 1.2, rock.z);
+                            scene.add(gemMesh);
+                            rock.gem = gemMesh;
+                        }
+                    } else if (rock.state === 'shattered') {
+                        // Float gem up and down awaiting collection
+                        if (rock.gem) {
+                            rock.gem.position.y = rock.baseY + 1.2 + Math.sin(elapsedTime * 4) * 0.2;
+                            rock.gem.rotation.y += 0.03;
+
+                            // Press 'E' when close to levitating gem to collect it into backpack
+                            if (keys.e) {
+                                rock.state = 'collected';
+                                const gemToFly = rock.gem;
+                                rock.gem = null;
+
+                                // Add to flying inventory animation pool
+                                flyingGems.push({
+                                    mesh: gemToFly,
+                                    progress: 0
+                                });
+                            }
+                        }
+                    }
                 } else {
-                    rock.ring.visible = false;
-                    rock.mesh.scale.lerp(rock.baseScale, 0.1);
-                    rock.mesh.rotation.z = THREE.MathUtils.lerp(rock.mesh.rotation.z, rock.baseRotZ, 0.1);
+                    if (rock.state === 'intact') {
+                        rock.ring.visible = false;
+                        rock.mesh.scale.lerp(rock.baseScale, 0.1);
+                        rock.mesh.rotation.z = THREE.MathUtils.lerp(rock.mesh.rotation.z, rock.baseRotZ, 0.1);
+                    }
+                }
+
+                // Animate Shards falling to ground
+                if (rock.shards.length > 0) {
+                    for (const shard of rock.shards) {
+                        shard.position.add(shard.userData.vel);
+                        shard.userData.vel.y -= 0.02; // gravity
+                        shard.rotation.x += shard.userData.rotSpeed.x * 0.05;
+                        shard.rotation.y += shard.userData.rotSpeed.y * 0.05;
+
+                        // Stop at ground level
+                        if (shard.position.y <= 0.1) {
+                            shard.position.y = 0.1;
+                            shard.userData.vel.set(0, 0, 0);
+                        }
+                    }
+                }
+            }
+
+            // ANIMATE FLYING GEMS INTO THE BACKPACK
+            for (let i = flyingGems.length - 1; i >= 0; i--) {
+                const fg = flyingGems[i];
+                fg.progress += 0.03; // Flight speed
+
+                // Compute exact backpack world position dynamically
+                const backpackWorldPos = new THREE.Vector3();
+                backpack.getWorldPosition(backpackWorldPos);
+
+                fg.mesh.position.lerp(backpackWorldPos, fg.progress);
+                fg.mesh.scale.multiplyScalar(0.95); // shrink as it enters inventory
+
+                if (fg.progress >= 1.0 || fg.mesh.position.distanceTo(backpackWorldPos) < 0.3) {
+                    scene.remove(fg.mesh);
+                    flyingGems.splice(i, 1);
+                    gemCount++;
+                    document.getElementById('gem-count').innerText = gemCount;
                 }
             }
 
