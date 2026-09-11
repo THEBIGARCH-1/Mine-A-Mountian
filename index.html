@@ -29,8 +29,8 @@
 <body>
 
     <div id="instructions">
-        WASD: Move | ARROWS: Look Around<br>
-        SHIFT: Sprint | SPACE: Jump | Scroll: Zoom
+        WASD: Fast Move | SHIFT: Sprint | SPACE: Jump<br>
+        LEFT / RIGHT-CLICK & Drag OR ARROWS: Rotate Camera | Scroll: Zoom
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -39,19 +39,19 @@
         // --- 1. SCENE SETUP ---
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x87ceeb);
-        scene.fog = new THREE.FogExp2(0x87ceeb, 0.01);
+        scene.fog = new THREE.FogExp2(0x87ceeb, 0.012);
 
         const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-        const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+        const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "high-performance" });
         renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5)); // Capped for smoother FPS
         document.body.appendChild(renderer.domElement);
 
         // --- 2. LIGHTS ---
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.75);
         scene.add(ambientLight);
 
-        const dirLight = new THREE.DirectionalLight(0xfffaed, 0.8);
+        const dirLight = new THREE.DirectionalLight(0xfffaed, 0.85);
         dirLight.position.set(30, 50, 20);
         scene.add(dirLight);
 
@@ -60,14 +60,12 @@
         const groundGeometry = new THREE.PlaneGeometry(groundSize, groundSize);
         groundGeometry.rotateX(-Math.PI / 2);
 
-        const groundMaterial = new THREE.MeshLambertMaterial({ 
-            color: 0x1e4112,
-            flatShading: true
-        });
+        const groundMaterial = new THREE.MeshLambertMaterial({ color: 0x1e4112 });
         const ground = new THREE.Mesh(groundGeometry, groundMaterial);
         scene.add(ground);
 
-        // --- 4. POINTY DENSE INSTANCED GRASS FIELD ---
+        // --- 4. OPTIMIZED POINTY GRASS FIELD ---
+        // Ultra-lightweight low-poly triangular pyramid (3 vertices)
         const grassGeometry = new THREE.ConeGeometry(0.08, 0.7, 3);
         grassGeometry.translate(0, 0.35, 0); 
 
@@ -83,21 +81,21 @@
                     vec3 worldPos = (instanceMatrix * vec4(position, 1.0)).xyz;
                     vec3 pos = position;
 
-                    // Wind animation
-                    float wave = sin(time * 3.0 + phase) * 0.08 * pow(vHeight, 2.0);
+                    // Lightweight wind motion
+                    float wave = sin(time * 2.5 + phase) * 0.07 * pow(vHeight, 2.0);
                     pos.x += wave;
 
-                    // Physics push away from player
+                    // Physical grass displacement near player
                     float dist = distance(worldPos.xz, playerPos.xz);
-                    float pushRadius = 1.3;
+                    float pushRadius = 1.4;
 
                     if (dist < pushRadius) {
                         float pushFactor = (1.0 - (dist / pushRadius)) * pow(vHeight, 1.2);
                         vec2 pushDir = normalize(worldPos.xz - playerPos.xz + vec2(0.001));
                         
-                        pos.x += pushDir.x * pushFactor * 0.8;
-                        pos.z += pushDir.y * pushFactor * 0.8;
-                        pos.y -= pushFactor * 0.4;
+                        pos.x += pushDir.x * pushFactor * 0.7;
+                        pos.z += pushDir.y * pushFactor * 0.7;
+                        pos.y -= pushFactor * 0.35;
                     }
 
                     vec4 mvPosition = modelViewMatrix * instanceMatrix * vec4(pos, 1.0);
@@ -108,9 +106,8 @@
                 varying float vHeight;
                 void main() {
                     vec3 baseColor = vec3(0.08, 0.35, 0.05);
-                    vec3 tipColor = vec3(0.45, 0.8, 0.15);
-                    vec3 finalColor = mix(baseColor, tipColor, vHeight);
-                    gl_FragColor = vec4(finalColor, 1.0);
+                    vec3 tipColor = vec3(0.48, 0.82, 0.16);
+                    gl_FragColor = vec4(mix(baseColor, tipColor, vHeight), 1.0);
                 }
             `,
             uniforms: { 
@@ -119,7 +116,7 @@
             }
         });
 
-        const grassCount = 30000;
+        const grassCount = 18000; // Optimized count to prevent lag while keeping high density
         const grassField = new THREE.InstancedMesh(grassGeometry, grassMaterial, grassCount);
         const dummy = new THREE.Object3D();
         const phases = new Float32Array(grassCount);
@@ -131,7 +128,7 @@
                 (Math.random() - 0.5) * 130
             );
             dummy.rotation.y = Math.random() * Math.PI * 2;
-            const scale = 0.7 + Math.random() * 0.6;
+            const scale = 0.75 + Math.random() * 0.55;
             dummy.scale.set(scale, scale, scale);
             dummy.updateMatrix();
             grassField.setMatrixAt(i, dummy.matrix);
@@ -140,39 +137,51 @@
         grassGeometry.setAttribute('phase', new THREE.InstancedBufferAttribute(phases, 1));
         scene.add(grassField);
 
-        // --- 5. MEDIUM-SMALL ROCKS (SMALLER THAN CHARACTER) ---
-        // Player height is ~2.8 units; rocks scaled to 0.6 - 1.4 units
+        // --- 5. ROCKS WITH HIGHLIGHTING & GLOW RING ---
         const rockGeometry = new THREE.DodecahedronGeometry(1, 1);
         const rockMaterial = new THREE.MeshLambertMaterial({ color: 0x666666, flatShading: true });
         
-        const rockCount = 60;
-        const rocksField = new THREE.InstancedMesh(rockGeometry, rockMaterial, rockCount);
-        const rockBoundingSpheres = [];
+        const rockCount = 50;
+        const rocksList = [];
+
+        // White border ring mesh for proximity detection
+        const ringGeo = new THREE.RingGeometry(1.0, 1.25, 32);
+        ringGeo.rotateX(-Math.PI / 2);
+        const ringMat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide });
 
         for (let i = 0; i < rockCount; i++) {
             let rx = (Math.random() - 0.5) * 120;
             let rz = (Math.random() - 0.5) * 120;
             
-            if (Math.hypot(rx, rz) < 6) {
-                rx += 10;
-                rz += 10;
-            }
+            if (Math.hypot(rx, rz) < 6) { rx += 10; rz += 10; }
 
-            // Medium-small rock scales (smaller than player)
-            const scaleX = 0.6 + Math.random() * 0.8;
-            const scaleY = 0.5 + Math.random() * 0.7;
-            const scaleZ = 0.6 + Math.random() * 0.8;
+            const baseScaleX = 0.7 + Math.random() * 0.8;
+            const baseScaleY = 0.6 + Math.random() * 0.7;
+            const baseScaleZ = 0.7 + Math.random() * 0.8;
 
-            dummy.position.set(rx, scaleY * 0.4, rz);
-            dummy.rotation.set(Math.random() * 0.3, Math.random() * Math.PI, Math.random() * 0.3);
-            dummy.scale.set(scaleX, scaleY, scaleZ);
-            dummy.updateMatrix();
-            rocksField.setMatrixAt(i, dummy.matrix);
+            const rockMesh = new THREE.Mesh(rockGeometry, rockMaterial);
+            rockMesh.position.set(rx, baseScaleY * 0.4, rz);
+            rockMesh.rotation.set(Math.random() * 0.3, Math.random() * Math.PI, Math.random() * 0.3);
+            rockMesh.scale.set(baseScaleX, baseScaleY, baseScaleZ);
+            scene.add(rockMesh);
 
-            const radius = Math.max(scaleX, scaleZ) * 0.85;
-            rockBoundingSpheres.push({ x: rx, z: rz, radius: radius });
+            // Create individual glowing white ring for each rock
+            const ringMesh = new THREE.Mesh(ringGeo, ringMat);
+            ringMesh.position.set(rx, 0.05, rz);
+            const ringRadius = Math.max(baseScaleX, baseScaleZ) * 1.35;
+            ringMesh.scale.set(ringRadius, ringRadius, ringRadius);
+            ringMesh.visible = false;
+            scene.add(ringMesh);
+
+            const boundingRadius = Math.max(baseScaleX, baseScaleZ) * 0.85;
+            rocksList.push({
+                mesh: rockMesh,
+                ring: ringMesh,
+                x: rx, z: rz,
+                baseScale: new THREE.Vector3(baseScaleX, baseScaleY, baseScaleZ),
+                radius: boundingRadius
+            });
         }
-        scene.add(rocksField);
 
         // --- 6. ROBLOX FACE & BACON HAIR CHARACTER ---
         const canvas = document.createElement('canvas');
@@ -253,13 +262,29 @@
         });
 
         let playerVelocityY = 0;
-        const gravity = -0.018;
-        const jumpStrength = 0.4;
+        const gravity = -0.022;
+        const jumpStrength = 0.45;
         let isGrounded = true;
 
         let camYaw = 0;
         let camPitch = 0.3;
         let camDistance = 8.0;
+        let isMouseDown = false;
+
+        // Support BOTH Left-Click (0) and Right-Click (2) dragging
+        window.addEventListener('mousedown', (e) => {
+            if (e.button === 0 || e.button === 2) isMouseDown = true;
+        });
+        window.addEventListener('mouseup', () => isMouseDown = false);
+        window.addEventListener('contextmenu', e => e.preventDefault());
+
+        window.addEventListener('mousemove', e => {
+            if (isMouseDown) {
+                camYaw -= e.movementX * 0.005;
+                camPitch += e.movementY * 0.005;
+                camPitch = Math.max(-0.2, Math.min(Math.PI / 2 - 0.1, camPitch));
+            }
+        });
 
         window.addEventListener('wheel', e => {
             camDistance += e.deltaY * 0.005;
@@ -269,10 +294,9 @@
         let currentRotation = 0;
         let walkTimer = 0;
 
-        // Rock collision checking helper
         function resolveRockCollision(newX, newZ) {
             const playerRadius = 0.6;
-            for (const rock of rockBoundingSpheres) {
+            for (const rock of rocksList) {
                 const dx = newX - rock.x;
                 const dz = newZ - rock.z;
                 const dist = Math.hypot(dx, dz);
@@ -300,7 +324,7 @@
             grassMaterial.uniforms.playerPos.value.copy(playerGroup.position);
 
             // CAMERA ROTATION VIA ARROW KEYS
-            const camRotateSpeed = 0.035;
+            const camRotateSpeed = 0.04;
             if (keys.ArrowLeft) camYaw += camRotateSpeed;
             if (keys.ArrowRight) camYaw -= camRotateSpeed;
             if (keys.ArrowUp) camPitch = Math.min(Math.PI / 2 - 0.1, camPitch + camRotateSpeed);
@@ -317,16 +341,15 @@
                 playerVelocityY += gravity;
             }
 
-            // Floor Collision
             if (playerGroup.position.y <= 0) {
                 playerGroup.position.y = 0;
                 playerVelocityY = 0;
                 isGrounded = true;
             }
 
-            // MOVEMENT & ANIMATION
-            const currentSpeed = keys.shift ? 0.28 : 0.15;
-            const animFrequency = keys.shift ? 0.32 : 0.20;
+            // FASTER MOVEMENT SPEEDS
+            const currentSpeed = keys.shift ? 0.38 : 0.24; // Walk & sprint boosted
+            const animFrequency = keys.shift ? 0.40 : 0.28;
 
             let inputX = 0;
             let inputZ = 0;
@@ -344,7 +367,6 @@
                 let nextX = playerGroup.position.x + Math.sin(targetAngle) * currentSpeed;
                 let nextZ = playerGroup.position.z + Math.cos(targetAngle) * currentSpeed;
 
-                // Apply Rock Collision Physics
                 const resolvedPos = resolveRockCollision(nextX, nextZ);
                 playerGroup.position.x = resolvedPos.x;
                 playerGroup.position.z = resolvedPos.z;
@@ -352,27 +374,44 @@
                 let diff = targetAngle - currentRotation;
                 while (diff < -Math.PI) diff += Math.PI * 2;
                 while (diff > Math.PI) diff -= Math.PI * 2;
-                currentRotation += diff * 0.15;
+                currentRotation += diff * 0.2;
 
                 playerGroup.rotation.y = currentRotation;
 
                 walkTimer += animFrequency;
-                const swing = Math.sin(walkTimer) * 0.6;
+                const swing = Math.sin(walkTimer) * 0.7;
                 leftArm.rotation.x = swing;
                 rightArm.rotation.x = -swing;
                 leftLeg.rotation.x = -swing;
                 rightLeg.rotation.x = swing;
             } else {
-                leftArm.rotation.x = THREE.MathUtils.lerp(leftArm.rotation.x, 0, 0.15);
-                rightArm.rotation.x = THREE.MathUtils.lerp(rightArm.rotation.x, 0, 0.15);
-                leftLeg.rotation.x = THREE.MathUtils.lerp(leftLeg.rotation.x, 0, 0.15);
-                rightLeg.rotation.x = THREE.MathUtils.lerp(rightLeg.rotation.x, 0, 0.15);
+                leftArm.rotation.x = THREE.MathUtils.lerp(leftArm.rotation.x, 0, 0.2);
+                rightArm.rotation.x = THREE.MathUtils.lerp(rightArm.rotation.x, 0, 0.2);
+                leftLeg.rotation.x = THREE.MathUtils.lerp(leftLeg.rotation.x, 0, 0.2);
+                rightLeg.rotation.x = THREE.MathUtils.lerp(rightLeg.rotation.x, 0, 0.2);
+            }
+
+            // PROXIMITY CHECK FOR ROCKS (GLOW RING & GROW EFFECT)
+            const playerPos = playerGroup.position;
+            const highlightDistance = 4.0;
+
+            for (const rock of rocksList) {
+                const dist = Math.hypot(playerPos.x - rock.x, playerPos.z - rock.z);
+                
+                if (dist < highlightDistance) {
+                    rock.ring.visible = true;
+                    // Slightly expand the rock when near
+                    const targetScale = rock.baseScale.clone().multiplyScalar(1.18);
+                    rock.mesh.scale.lerp(targetScale, 0.1);
+                } else {
+                    rock.ring.visible = false;
+                    rock.mesh.scale.lerp(rock.baseScale, 0.1);
+                }
             }
 
             headGroup.visible = camDistance > 0.8;
 
             const targetPos = playerGroup.position.clone().add(new THREE.Vector3(0, 2.4, 0));
-
             const camX = targetPos.x + camDistance * Math.sin(camYaw) * Math.cos(camPitch);
             const camY = targetPos.y + camDistance * Math.sin(camPitch);
             const camZ = targetPos.z + camDistance * Math.cos(camYaw) * Math.cos(camPitch);
