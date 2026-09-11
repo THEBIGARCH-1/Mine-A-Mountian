@@ -3,57 +3,40 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Blocky Roblox Mountain Mining Simulator</title>
+    <title>Roblox Multi-Layer Mining Game</title>
     <style>
         body { margin: 0; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; user-select: none; }
-        
-        #hud {
+        #instructions {
             position: absolute;
             top: 20px;
             left: 20px;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            pointer-events: none;
-        }
-
-        .hud-box {
             background: rgba(0, 0, 0, 0.85);
             color: white;
-            padding: 12px 20px;
+            padding: 14px 22px;
             border-radius: 10px;
             font-weight: bold;
+            pointer-events: none;
+            line-height: 1.6;
             box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-            border: 1px solid rgba(255, 255, 255, 0.1);
         }
-
-        #money-display { color: #55ff55; font-size: 20px; }
-        #layer-info { color: #00ffcc; font-size: 14px; }
-        #inventory-info { color: #ffcc00; font-size: 14px; }
-
-        #sell-btn {
-            pointer-events: auto;
-            background: #ff9900;
-            color: white;
-            border: none;
-            padding: 10px 16px;
+        #layer-info {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.85);
+            color: #00ffcc;
+            padding: 10px 18px;
             border-radius: 8px;
             font-size: 16px;
-            font-weight: 800;
-            cursor: pointer;
-            transition: 0.2s;
-            text-transform: uppercase;
-            box-shadow: 0 4px 12px rgba(255, 153, 0, 0.4);
+            font-weight: bold;
         }
-        #sell-btn:hover { background: #ffaa22; transform: scale(1.05); }
-
         #shop-container {
             position: absolute;
             top: 20px;
             right: 20px;
-            width: 320px;
+            width: 300px;
             max-height: 85vh;
-            background: rgba(20, 20, 20, 0.9);
+            background: rgba(20, 20, 20, 0.88);
             backdrop-filter: blur(10px);
             border-radius: 12px;
             border: 2px solid rgba(255, 255, 255, 0.1);
@@ -64,7 +47,6 @@
             box-shadow: 0 8px 32px rgba(0,0,0,0.5);
             overflow-y: auto;
         }
-        
         #shop-title {
             font-size: 20px;
             font-weight: 800;
@@ -74,7 +56,6 @@
             letter-spacing: 1px;
             color: #ffcc00;
         }
-
         .shop-item {
             background: rgba(255, 255, 255, 0.08);
             margin-bottom: 8px;
@@ -88,8 +69,7 @@
         .item-info { display: flex; flex-direction: column; }
         .item-name { font-weight: bold; font-size: 14px; color: #fff; }
         .item-stats { font-size: 11px; color: #00ffcc; font-weight: bold; margin-top: 2px; }
-        .item-cost { font-size: 12px; color: #55ff55; font-weight: 800; margin-top: 2px; }
-
+        .item-desc { font-size: 10px; color: #aaa; }
         .shop-btn {
             background: #28a745;
             color: white;
@@ -101,78 +81,33 @@
             transition: 0.2s;
         }
         .shop-btn:hover { background: #34ce57; transform: scale(1.05); }
-        .shop-btn.disabled { background: #555; cursor: not-allowed; opacity: 0.6; }
         .shop-btn.active { background: #007bff; cursor: default; }
-
-        #instructions {
-            position: absolute;
-            bottom: 20px;
-            left: 20px;
-            background: rgba(0, 0, 0, 0.8);
-            color: #ddd;
-            padding: 10px 16px;
-            border-radius: 8px;
-            font-size: 12px;
-            pointer-events: none;
-        }
     </style>
 </head>
 <body>
 
-    <div id="hud">
-        <div class="hud-box" id="money-display">💰 Cash: $0</div>
-        <div class="hud-box" id="inventory-info">🎒 Blocks Mined: 0</div>
-        <div class="hud-box" id="layer-info">⛰️ Depth: 0m (Grass Mountain)</div>
-        <button id="sell-btn" onclick="sellBlocks()">💰 Sell All Blocks</button>
+    <div id="instructions">
+        WASD: Move | SHIFT: Sprint | SPACE: Jump<br>
+        E: Equip / Unequip Tool<br>
+        LEFT-CLICK Ground: Mine Underground Layers<br>
+        RIGHT-CLICK / Drag: Rotate Camera
     </div>
 
+    <div id="layer-info">Current Depth: 0.0m (Grass Layer)</div>
+
+    <!-- Shop UI -->
     <div id="shop-container">
         <div id="shop-title">🛠️ Tool Shop</div>
         <div id="shop-list"></div>
     </div>
 
-    <div id="instructions">
-        WASD: Move | SHIFT: Sprint | SPACE: Jump | E: Toggle Tool | CLICK Ground: Mine Blocky Terrain
-    </div>
-
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
     <script>
-        // --- 1. GAME DATA & PLAYER ECONOMY ---
-        let playerMoney = 0;
-        let minedInventory = { grass: 0, stone: 0, deepslate: 0, magma: 0, void: 0 };
-        let totalBlocksMined = 0;
-
-        const blockValues = {
-            grass: 1,
-            stone: 5,
-            deepslate: 25,
-            magma: 120,
-            void: 600
-        };
-
-        const toolsData = [
-            { id: 1, name: "Rusty Pick", cost: 0, power: 1, speed: 1.0, radius: 1, color: 0x8b4513, geo: "pick" },
-            { id: 2, name: "Iron Dagger", cost: 150, power: 2, speed: 1.4, radius: 1, color: 0xaaaaaa, geo: "chisel" },
-            { id: 3, name: "Steel Drill", cost: 1200, power: 4, speed: 1.8, radius: 2, color: 0x4682b4, geo: "drill" },
-            { id: 4, name: "Gold Hammer", cost: 8500, power: 8, speed: 2.3, radius: 2, color: 0xffd700, geo: "pick" },
-            { id: 5, name: "Diamond Excavator", cost: 45000, power: 15, speed: 3.0, radius: 3, color: 0x00ffff, geo: "drill" },
-            { id: 6, name: "Magma Buster", cost: 250000, power: 30, speed: 4.0, radius: 3, color: 0xff4500, geo: "chisel" },
-            { id: 7, name: "Plasma Cutter", cost: 1500000, power: 60, speed: 5.2, radius: 4, color: 0x9400d3, geo: "drill" },
-            { id: 8, name: "Void Smasher", cost: 8000000, power: 120, speed: 6.5, radius: 4, color: 0x111111, geo: "pick" },
-            { id: 9, name: "Quantum Annihilator", cost: 25000000, power: 250, speed: 8.0, radius: 5, color: 0x00ff66, geo: "drill" },
-            { id: 10, name: "Galaxy Drill", cost: 50000000, power: 500, speed: 10.0, radius: 6, color: 0xff00ff, geo: "galaxy" }
-        ];
-
-        let ownedTools = [true, false, false, false, false, false, false, false, false, false];
-        let currentToolIndex = 0;
-        let isToolEquipped = true;
-        let lastMineTime = 0;
-
-        // --- 2. THREE.JS SCENE SETUP ---
+        // --- 1. SCENE SETUP ---
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x7ec0ee);
-        scene.fog = new THREE.FogExp2(0x7ec0ee, 0.008);
+        scene.background = new THREE.Color(0x87ceeb);
+        scene.fog = new THREE.FogExp2(0x87ceeb, 0.012);
 
         const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
         const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -180,288 +115,402 @@
         renderer.shadowMap.enabled = true;
         document.body.appendChild(renderer.domElement);
 
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+        // --- 2. LIGHTS ---
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
         scene.add(ambientLight);
 
-        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-        dirLight.position.set(40, 80, 40);
+        const dirLight = new THREE.DirectionalLight(0xfffaed, 0.9);
+        dirLight.position.set(30, 50, 20);
         dirLight.castShadow = true;
         scene.add(dirLight);
 
-        // --- 3. VOXEL BLOCK MOUNTAIN TERRAIN ---
-        const GRID_SIZE = 50;
-        const BLOCK_SIZE = 1.5;
-        const terrainMap = new Map();
+        // --- 3. MULTI-LAYER TERRAIN & COLOR SYSTEM ---
+        const groundSize = 120;
+        const groundSegments = 120;
+        const groundGeometry = new THREE.PlaneGeometry(groundSize, groundSize, groundSegments, groundSegments);
+        groundGeometry.rotateX(-Math.PI / 2);
 
-        const blockMaterials = {
-            grass: new THREE.MeshLambertMaterial({ color: 0x44aa44 }),
-            stone: new THREE.MeshLambertMaterial({ color: 0x777777 }),
-            deepslate: new THREE.MeshLambertMaterial({ color: 0x333339 }),
-            magma: new THREE.MeshLambertMaterial({ color: 0xd34800 }),
-            void: new THREE.MeshLambertMaterial({ color: 0x4b0082 })
-        };
+        // Colors for each layer depth
+        const layerColors = [
+            { depth: 0, color: new THREE.Color(0x1e4112) },    // Grass
+            { depth: -2, color: new THREE.Color(0x555555) },   // Stone
+            { depth: -6, color: new THREE.Color(0x22222a) },   // Deepslate
+            { depth: -12, color: new THREE.Color(0xc43000) },  // Magma / Lava
+            { depth: -20, color: new THREE.Color(0x4b0082) }   // Galaxy Void
+        ];
 
-        const boxGeo = new THREE.BoxGeometry(BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
-        const terrainGroup = new THREE.Group();
-        scene.add(terrainGroup);
+        // Apply vertex colors dynamically based on height (Y position)
+        const posAttr = groundGeometry.attributes.position;
+        const colorAttr = new THREE.BufferAttribute(new Float32Array(posAttr.count * 3), 3);
+        groundGeometry.setAttribute('color', colorAttr);
 
-        function getBlockType(y) {
-            if (y >= 0) return 'grass';
-            if (y >= -6 * BLOCK_SIZE) return 'stone';
-            if (y >= -14 * BLOCK_SIZE) return 'deepslate';
-            if (y >= -24 * BLOCK_SIZE) return 'magma';
-            return 'void';
-        }
+        function updateTerrainColors() {
+            for (let i = 0; i < posAttr.count; i++) {
+                const y = posAttr.getY(i);
+                let vertexColor = layerColors[0].color.clone();
 
-        // Generate Blocky Mountain
-        for (let x = -GRID_SIZE / 2; x < GRID_SIZE / 2; x++) {
-            for (let z = -GRID_SIZE / 2; z < GRID_SIZE / 2; z++) {
-                const distFromCenter = Math.sqrt(x * x + z * z);
-                const mountainHeight = Math.max(0, Math.floor((20 - distFromCenter * 0.8)));
-
-                for (let y = mountainHeight; y >= -30; y--) {
-                    const blockType = getBlockType(y * BLOCK_SIZE);
-                    const mesh = new THREE.Mesh(boxGeo, blockMaterials[blockType]);
-                    mesh.position.set(x * BLOCK_SIZE, y * BLOCK_SIZE, z * BLOCK_SIZE);
-                    mesh.userData = { gridX: x, gridY: y, gridZ: z, type: blockType, hp: getBlockHp(blockType) };
-                    
-                    terrainGroup.add(mesh);
-                    terrainMap.set(`${x},${y},${z}`, mesh);
+                for (let l = 0; l < layerColors.length - 1; l++) {
+                    const c1 = layerColors[l];
+                    const c2 = layerColors[l + 1];
+                    if (y <= c1.depth && y >= c2.depth) {
+                        const factor = (y - c1.depth) / (c2.depth - c1.depth);
+                        vertexColor.copy(c1.color).lerp(c2.color, factor);
+                        break;
+                    } else if (y < layerColors[layerColors.length - 1].depth) {
+                        vertexColor.copy(layerColors[layerColors.length - 1].color);
+                    }
                 }
+
+                colorAttr.setXYZ(i, vertexColor.r, vertexColor.g, vertexColor.b);
             }
+            colorAttr.needsUpdate = true;
         }
 
-        function getBlockHp(type) {
-            switch(type) {
-                case 'grass': return 1;
-                case 'stone': return 3;
-                case 'deepslate': return 8;
-                case 'magma': return 20;
-                case 'void': return 50;
-                default: return 1;
-            }
-        }
+        updateTerrainColors();
 
-        // --- 4. ROBLOX PLAYER CHARACTER ---
+        const groundMaterial = new THREE.MeshLambertMaterial({ 
+            vertexColors: true,
+            flatShading: true
+        });
+        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+        scene.add(ground);
+
+        // Mining Reach Indicator Ring
+        const mineRadiusRing = new THREE.Mesh(
+            new THREE.RingGeometry(4.8, 5.0, 32),
+            new THREE.MeshBasicMaterial({ color: 0xffff00, side: THREE.DoubleSide, transparent: true, opacity: 0.5 })
+        );
+        mineRadiusRing.rotation.x = -Math.PI / 2;
+        mineRadiusRing.position.y = 0.05;
+        scene.add(mineRadiusRing);
+
+        // --- 4. INTERACTIVE GRASS FIELD ---
+        const grassGeometry = new THREE.PlaneGeometry(0.1, 0.6, 1, 4);
+        grassGeometry.translate(0, 0.3, 0); 
+
+        const grassMaterial = new THREE.ShaderMaterial({
+            vertexShader: `
+                attribute float phase;
+                uniform float time;
+                uniform vec3 playerPos;
+                varying float vHeight;
+
+                void main() {
+                    vHeight = position.y / 0.6;
+                    vec3 worldPos = (instanceMatrix * vec4(position, 1.0)).xyz;
+                    vec3 pos = position;
+
+                    float wave = sin(time * 3.0 + phase) * 0.08 * pow(vHeight, 2.0);
+                    pos.x += wave;
+
+                    float dist = distance(worldPos.xz, playerPos.xz);
+                    float pushRadius = 1.2;
+
+                    if (dist < pushRadius) {
+                        float pushFactor = (1.0 - (dist / pushRadius)) * pow(vHeight, 1.2);
+                        vec2 pushDir = normalize(worldPos.xz - playerPos.xz + vec2(0.001));
+                        
+                        pos.x += pushDir.x * pushFactor * 0.8;
+                        pos.z += pushDir.y * pushFactor * 0.8;
+                        pos.y -= pushFactor * 0.45;
+                    }
+
+                    vec4 mvPosition = modelViewMatrix * instanceMatrix * vec4(pos, 1.0);
+                    gl_Position = projectionMatrix * mvPosition;
+                }
+            `,
+            fragmentShader: `
+                varying float vHeight;
+                void main() {
+                    vec3 baseColor = vec3(0.08, 0.35, 0.05);
+                    vec3 tipColor = vec3(0.45, 0.8, 0.15);
+                    vec3 finalColor = mix(baseColor, tipColor, vHeight);
+                    gl_FragColor = vec4(finalColor, 1.0);
+                }
+            `,
+            uniforms: { 
+                time: { value: 0 },
+                playerPos: { value: new THREE.Vector3() }
+            },
+            side: THREE.DoubleSide
+        });
+
+        const grassCount = 40000;
+        const grassField = new THREE.InstancedMesh(grassGeometry, grassMaterial, grassCount);
+        const dummy = new THREE.Object3D();
+        const phases = new Float32Array(grassCount);
+
+        for (let i = 0; i < grassCount; i++) {
+            dummy.position.set(
+                (Math.random() - 0.5) * 100,
+                0,
+                (Math.random() - 0.5) * 100
+            );
+            dummy.rotation.y = Math.random() * Math.PI * 2;
+            const scale = 0.8 + Math.random() * 0.4;
+            dummy.scale.set(scale, scale, scale);
+            dummy.updateMatrix();
+            grassField.setMatrixAt(i, dummy.matrix);
+            phases[i] = Math.random() * Math.PI * 2;
+        }
+        grassGeometry.setAttribute('phase', new THREE.InstancedBufferAttribute(phases, 1));
+        scene.add(grassField);
+
+        // --- 5. ROBLOX FACE & BACON HAIR CHARACTER ---
+        const canvas = document.createElement('canvas');
+        canvas.width = 256; canvas.height = 256;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#ffcc99'; ctx.fillRect(0, 0, 256, 256);
+        ctx.fillStyle = '#111111';
+        ctx.beginPath(); ctx.arc(80, 110, 14, 0, Math.PI * 2); ctx.arc(176, 110, 14, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath(); ctx.arc(75, 105, 4, 0, Math.PI * 2); ctx.arc(171, 105, 4, 0, Math.PI * 2); ctx.fill();
+        ctx.lineWidth = 8; ctx.strokeStyle = '#111111';
+        ctx.beginPath(); ctx.arc(128, 140, 45, 0.1 * Math.PI, 0.9 * Math.PI, false); ctx.stroke();
+        const faceTexture = new THREE.CanvasTexture(canvas);
+
         const playerGroup = new THREE.Group();
-        playerGroup.position.set(0, 35, 0);
         scene.add(playerGroup);
 
         const skinMat = new THREE.MeshLambertMaterial({ color: 0xffcc99 });
+        const faceMat = new THREE.MeshLambertMaterial({ map: faceTexture });
         const shirtMat = new THREE.MeshLambertMaterial({ color: 0x0066cc });
         const pantsMat = new THREE.MeshLambertMaterial({ color: 0x222222 });
+        const baconHairMat = new THREE.MeshLambertMaterial({ color: 0x5a2d0c });
 
-        const head = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 0.8), skinMat);
-        head.position.y = 2.0; playerGroup.add(head);
+        const headGroup = new THREE.Group();
+        headGroup.position.y = 2.4;
+        const headMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 0.8, 24), skinMat);
+        headGroup.add(headMesh);
+        const facePlane = new THREE.Mesh(new THREE.PlaneGeometry(0.7, 0.7), faceMat);
+        facePlane.position.set(0, 0, 0.46);
+        headGroup.add(facePlane);
+
+        const strand1 = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.15, 0.7), baconHairMat);
+        strand1.position.set(0, 0.42, 0); headGroup.add(strand1);
+        const strand2 = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.12, 0.8), baconHairMat);
+        strand2.position.set(-0.25, 0.35, 0.1); strand2.rotation.z = 0.2; headGroup.add(strand2);
+        const strand3 = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.12, 0.8), baconHairMat);
+        strand3.position.set(0.25, 0.35, 0.1); strand3.rotation.z = -0.2; headGroup.add(strand3);
+        playerGroup.add(headGroup);
 
         const torso = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.4, 0.6), shirtMat);
-        torso.position.y = 1.0; playerGroup.add(torso);
+        torso.position.y = 1.3;
+        playerGroup.add(torso);
 
-        const createLimb = (mat, pos) => {
-            const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.2, 0.5), mat);
-            mesh.geometry.translate(0, -0.5, 0);
+        const createLimb = (geo, mat, pos) => {
+            geo.translate(0, -0.5, 0);
+            const mesh = new THREE.Mesh(geo, mat);
             mesh.position.copy(pos);
             playerGroup.add(mesh);
             return mesh;
         };
 
-        const leftArm = createLimb(skinMat, new THREE.Vector3(-0.85, 1.6, 0));
-        const rightArm = createLimb(skinMat, new THREE.Vector3(0.85, 1.6, 0));
-        const leftLeg = createLimb(pantsMat, new THREE.Vector3(-0.35, 0.4, 0));
-        const rightLeg = createLimb(pantsMat, new THREE.Vector3(0.35, 0.4, 0));
+        const leftArm = createLimb(new THREE.BoxGeometry(0.4, 1.2, 0.4), skinMat, new THREE.Vector3(-0.8, 1.9, 0));
+        const rightArm = createLimb(new THREE.BoxGeometry(0.4, 1.2, 0.4), skinMat, new THREE.Vector3(0.8, 1.9, 0));
+        const leftLeg = createLimb(new THREE.BoxGeometry(0.5, 1.2, 0.5), pantsMat, new THREE.Vector3(-0.35, 0.6, 0));
+        const rightLeg = createLimb(new THREE.BoxGeometry(0.5, 1.2, 0.5), pantsMat, new THREE.Vector3(0.35, 0.6, 0));
 
         const toolContainer = new THREE.Group();
-        toolContainer.position.set(0, -0.8, 0.2);
+        toolContainer.position.set(0, -1.0, 0.3);
         rightArm.add(toolContainer);
 
-        // --- 5. SHOP & ECONOMY SYSTEM ---
-        function sellBlocks() {
-            let earnings = 0;
-            for (let type in minedInventory) {
-                earnings += minedInventory[type] * blockValues[type];
-                minedInventory[type] = 0;
-            }
-            playerMoney += earnings;
-            totalBlocksMined = 0;
-            updateHUD();
-            updateShopUI();
-        }
+        // --- 6. 10 TOOL TIERS WITH STRENGTH & SPEED ---
+        const toolsData = [
+            { id: 1, name: "Rusty Chisel", desc: "Old corroded iron", color: 0x8b4513, geo: "chisel", power: 0.4, speed: 1.0, radius: 1.2 },
+            { id: 2, name: "Iron Pick", desc: "Basic sturdy iron", color: 0xaaaaaa, geo: "pick", power: 0.8, speed: 1.2, radius: 1.5 },
+            { id: 3, name: "Steel Drill", desc: "Tempered steel point", color: 0x4682b4, geo: "drill", power: 1.3, speed: 1.5, radius: 1.8 },
+            { id: 4, name: "Gold Chisel", desc: "Fast heavy gold", color: 0xffd700, geo: "chisel", power: 1.9, speed: 2.0, radius: 2.0 },
+            { id: 5, name: "Diamond Pick", desc: "Crystallized diamond", color: 0x00ffff, geo: "pick", power: 2.6, speed: 2.3, radius: 2.4 },
+            { id: 6, name: "Magma Breaker", desc: "Molten lava power", color: 0xff4500, geo: "drill", power: 3.4, speed: 2.8, radius: 2.8 },
+            { id: 7, name: "Plasma Dagger", desc: "Ionized high speed", color: 0x9400d3, geo: "chisel", power: 4.3, speed: 3.4, radius: 3.2 },
+            { id: 8, name: "Void Scythe", desc: "Deepslate destructive", color: 0x111111, geo: "pick", power: 5.4, speed: 4.0, radius: 3.6 },
+            { id: 9, name: "Quantum Beam", desc: "Fast particle laser", color: 0x00ff66, geo: "drill", power: 6.8, speed: 4.8, radius: 4.0 },
+            { id: 10, name: "Galaxy Drill", desc: "Ultimate cosmic drill", color: 0xff00ff, geo: "galaxy", power: 9.0, speed: 6.0, radius: 4.8 }
+        ];
+
+        let currentToolIndex = 0;
+        let isToolEquipped = true;
+        let lastMineTime = 0;
+        let swingAnimTimer = 0;
 
         function buildToolMesh(data) {
             const group = new THREE.Group();
-            const headMat = new THREE.MeshStandardMaterial({ color: data.color, roughness: 0.2, metalness: 0.8 });
             const handleMat = new THREE.MeshLambertMaterial({ color: 0x3d2314 });
+            const headMat = new THREE.MeshStandardMaterial({ color: data.color, roughness: 0.3, metalness: 0.8 });
 
-            const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 1.2), handleMat);
-            handle.rotation.x = Math.PI / 3;
-            group.add(handle);
+            if (data.geo === "chisel") {
+                const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.8), handleMat);
+                handle.rotation.x = Math.PI / 3;
+                group.add(handle);
 
-            const head = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.2, 0.2), headMat);
-            head.position.set(0, 0.4, 0.4);
-            group.add(head);
+                const blade = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.4, 0.04), headMat);
+                blade.position.set(0, 0.3, 0.3);
+                blade.rotation.x = Math.PI / 3;
+                group.add(blade);
+            } else if (data.geo === "pick") {
+                const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.2), handleMat);
+                handle.rotation.x = Math.PI / 4;
+                group.add(handle);
+
+                const head = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.1, 0.1), headMat);
+                head.position.set(0, 0.4, 0.4);
+                group.add(head);
+            } else if (data.geo === "drill" || data.geo === "galaxy") {
+                const body = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.2, 0.7), headMat);
+                body.rotation.x = Math.PI / 2;
+                group.add(body);
+
+                const tip = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.6, 16), 
+                    new THREE.MeshStandardMaterial({ color: data.color, emissive: data.color, emissiveIntensity: 0.5 }));
+                tip.rotation.x = -Math.PI / 2;
+                tip.position.set(0, 0, 0.5);
+                group.add(tip);
+
+                if (data.geo === "galaxy") {
+                    const ringGeo = new THREE.TorusGeometry(0.35, 0.04, 16, 100);
+                    const ringMat = new THREE.MeshBasicMaterial({ color: 0x00ffff });
+                    const ring = new THREE.Mesh(ringGeo, ringMat);
+                    ring.position.set(0, 0, 0.2);
+                    group.add(ring);
+                }
+            }
             return group;
         }
 
         function equipTool(index) {
-            if (!ownedTools[index]) return;
             currentToolIndex = index;
             isToolEquipped = true;
             toolContainer.visible = true;
-            while(toolContainer.children.length > 0) toolContainer.remove(toolContainer.children[0]);
-            toolContainer.add(buildToolMesh(toolsData[index]));
+            while(toolContainer.children.length > 0) {
+                toolContainer.remove(toolContainer.children[0]);
+            }
+            const newTool = buildToolMesh(toolsData[index]);
+            toolContainer.add(newTool);
             updateShopUI();
         }
 
-        function buyTool(index) {
-            const tool = toolsData[index];
-            if (playerMoney >= tool.cost && !ownedTools[index]) {
-                playerMoney -= tool.cost;
-                ownedTools[index] = true;
-                equipTool(index);
-                updateHUD();
-                updateShopUI();
-            }
-        }
-
         const shopListEl = document.getElementById('shop-list');
-        function renderShopItems() {
-            shopListEl.innerHTML = '';
-            toolsData.forEach((tool, idx) => {
-                const item = document.createElement('div');
-                item.className = 'shop-item';
-                item.innerHTML = `
-                    <div class="item-info">
-                        <span class="item-name">Lvl ${tool.id}: ${tool.name}</span>
-                        <span class="item-stats">⚡ PWR: ${tool.power} | 💨 RAD: ${tool.radius}</span>
-                        <span class="item-cost">$${tool.cost.toLocaleString()}</span>
-                    </div>
-                    <button class="shop-btn" id="btn-tool-${idx}"></button>
-                `;
-                shopListEl.appendChild(item);
-            });
-        }
-        renderShopItems();
+        toolsData.forEach((tool, idx) => {
+            const item = document.createElement('div');
+            item.className = 'shop-item';
+            item.innerHTML = `
+                <div class="item-info">
+                    <span class="item-name">Lvl ${tool.id}: ${tool.name}</span>
+                    <span class="item-stats">⚡ PWR: ${tool.power} | 💨 SPD: ${tool.speed}x</span>
+                    <span class="item-desc">${tool.desc}</span>
+                </div>
+                <button class="shop-btn" id="btn-tool-${idx}" onclick="equipTool(${idx})">Equip</button>
+            `;
+            shopListEl.appendChild(item);
+        });
 
         function updateShopUI() {
-            toolsData.forEach((tool, idx) => {
+            toolsData.forEach((_, idx) => {
                 const btn = document.getElementById(`btn-tool-${idx}`);
-                if (ownedTools[idx]) {
-                    if (idx === currentToolIndex && isToolEquipped) {
-                        btn.innerText = "Equipped";
-                        btn.className = "shop-btn active";
-                        btn.onclick = null;
-                    } else {
-                        btn.innerText = "Equip";
-                        btn.className = "shop-btn";
-                        btn.onclick = () => equipTool(idx);
-                    }
+                if (idx === currentToolIndex && isToolEquipped) {
+                    btn.innerText = "Equipped";
+                    btn.className = "shop-btn active";
                 } else {
-                    btn.innerText = "Buy";
-                    if (playerMoney >= tool.cost) {
-                        btn.className = "shop-btn";
-                        btn.onclick = () => buyTool(idx);
-                    } else {
-                        btn.className = "shop-btn disabled";
-                        btn.onclick = null;
-                    }
+                    btn.innerText = "Equip";
+                    btn.className = "shop-btn";
                 }
             });
         }
 
-        function updateHUD() {
-            document.getElementById('money-display').innerText = `💰 Cash: $${playerMoney.toLocaleString()}`;
-            document.getElementById('inventory-info').innerText = `🎒 Mined: ${totalBlocksMined} Blocks`;
-            
-            const depth = Math.max(0, Math.floor((30 - playerGroup.position.y))).toFixed(0);
-            let layerName = "Grass Mountain";
-            if (playerGroup.position.y < -24 * BLOCK_SIZE) layerName = "Galaxy Void Layer";
-            else if (playerGroup.position.y < -14 * BLOCK_SIZE) layerName = "Magma Layer";
-            else if (playerGroup.position.y < -6 * BLOCK_SIZE) layerName = "Deepslate Layer";
-            else if (playerGroup.position.y < 0) layerName = "Stone Layer";
-            
-            document.getElementById('layer-info').innerText = `⛰️ Depth: ${depth}m (${layerName})`;
-        }
-
         equipTool(0);
 
-        // --- 6. FAST BLOCKY MINING ---
+        // --- 7. MINING & DESTRUCTION LOGIC ---
         const raycaster = new THREE.Raycaster();
         const mouse = new THREE.Vector2();
 
         window.addEventListener('click', (e) => {
-            if (e.target.closest('#shop-container') || e.target.closest('#sell-btn')) return;
+            if (e.target.closest('#shop-container')) return;
             if (!isToolEquipped) return;
 
             const tool = toolsData[currentToolIndex];
             const now = performance.now();
-            if (now - lastMineTime < 400 / tool.speed) return;
+            const cooldown = 600 / tool.speed; // Higher speed = shorter cooldown
+
+            if (now - lastMineTime < cooldown) return; // Speed check
 
             mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
             mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
 
             raycaster.setFromCamera(mouse, camera);
-            const intersects = raycaster.intersectObjects(terrainGroup.children);
+            const intersects = raycaster.intersectObject(ground);
 
             if (intersects.length > 0) {
-                const targetBlock = intersects[0].object;
-                if (playerGroup.position.distanceTo(targetBlock.position) <= 12) {
+                const hitPoint = intersects[0].point;
+                const distToPlayer = playerGroup.position.distanceTo(hitPoint);
+
+                if (distToPlayer <= 5.0) {
                     lastMineTime = now;
-                    mineVoxelRadius(targetBlock.userData.gridX, targetBlock.userData.gridY, targetBlock.userData.gridZ, tool.power, tool.radius);
+                    swingAnimTimer = 1.0; // Trigger swing animation
+                    deformGround(hitPoint, tool.power, tool.radius);
                 }
             }
         });
 
-        function mineVoxelRadius(cx, cy, cz, power, radius) {
-            for (let x = -radius; x <= radius; x++) {
-                for (let y = -radius; y <= radius; y++) {
-                    for (let z = -radius; z <= radius; z++) {
-                        if (Math.sqrt(x*x + y*y + z*z) <= radius) {
-                            const key = `${cx + x},${cy + y},${cz + z}`;
-                            const block = terrainMap.get(key);
-                            if (block) {
-                                block.userData.hp -= power;
-                                if (block.userData.hp <= 0) {
-                                    minedInventory[block.userData.type]++;
-                                    totalBlocksMined++;
-                                    terrainGroup.remove(block);
-                                    terrainMap.delete(key);
-                                }
-                            }
-                        }
-                    }
+        function deformGround(center, power, radius) {
+            for (let i = 0; i < posAttr.count; i++) {
+                const vx = posAttr.getX(i);
+                const vy = posAttr.getY(i);
+                const vz = posAttr.getZ(i);
+
+                const dist = Math.sqrt((vx - center.x) ** 2 + (vz - center.z) ** 2);
+                if (dist < radius) {
+                    // Harder resist depth factor deeper down
+                    const depthHardnessFactor = Math.max(0.3, 1.0 - Math.abs(vy) * 0.03);
+                    const depth = (1 - (dist / radius)) * power * depthHardnessFactor;
+                    posAttr.setY(i, vy - depth);
                 }
             }
-            updateHUD();
-            updateShopUI();
+            posAttr.needsUpdate = true;
+            updateTerrainColors();
+            groundGeometry.computeVertexNormals();
         }
 
-        // --- 7. PLAYER CONTROLS & CAMERA ---
-        const keys = { w: false, a: false, s: false, d: false, space: false, shift: false };
-        window.addEventListener('keydown', e => {
+        // --- 8. CONTROLS & PHYSICS ---
+        const keys = { w: false, a: false, s: false, d: false, i: false, o: false, space: false, shift: false };
+        
+        window.addEventListener('keydown', e => { 
             if (e.code === "Space") keys.space = true;
             if (e.key === "Shift" || e.code === "ShiftLeft") keys.shift = true;
+            
             if (e.key.toLowerCase() === 'e') {
                 isToolEquipped = !isToolEquipped;
                 toolContainer.visible = isToolEquipped;
                 updateShopUI();
             }
+
             const key = e.key.toLowerCase();
-            if (keys.hasOwnProperty(key)) keys[key] = true;
+            if (keys.hasOwnProperty(key)) keys[key] = true; 
         });
 
-        window.addEventListener('keyup', e => {
+        window.addEventListener('keyup', e => { 
             if (e.code === "Space") keys.space = false;
             if (e.key === "Shift" || e.code === "ShiftLeft") keys.shift = false;
             const key = e.key.toLowerCase();
-            if (keys.hasOwnProperty(key)) keys[key] = false;
+            if (keys.hasOwnProperty(key)) keys[key] = false; 
         });
 
-        let camYaw = 0, camPitch = 0.3, camDistance = 10.0;
+        let playerVelocityY = 0;
+        const gravity = -0.015;
+        const jumpStrength = 0.35;
+        let isGrounded = true;
+
+        let camYaw = 0;
+        let camPitch = 0.3;
+        let camDistance = 8.0;
         let isRightMouseDown = false;
 
-        window.addEventListener('mousedown', e => { if (e.button === 2) isRightMouseDown = true; });
+        window.addEventListener('mousedown', (e) => {
+            if (e.button === 2) isRightMouseDown = true;
+        });
         window.addEventListener('mouseup', () => isRightMouseDown = false);
         window.addEventListener('contextmenu', e => e.preventDefault());
+
         window.addEventListener('mousemove', e => {
             if (isRightMouseDown) {
                 camYaw -= e.movementX * 0.005;
@@ -470,59 +519,125 @@
             }
         });
 
-        let playerVelocityY = 0;
-        let isGrounded = false;
+        window.addEventListener('wheel', e => {
+            camDistance += e.deltaY * 0.005;
+            camDistance = Math.max(0, Math.min(25, camDistance));
+        });
 
-        // --- 8. MAIN GAME LOOP ---
+        let currentRotation = 0;
+        let walkTimer = 0;
+
+        // --- 9. GAME LOOP ---
+        const clock = new THREE.Clock();
+
         function animate() {
             requestAnimationFrame(animate);
 
-            // Gravity & Simple Surface Raycast Collision
-            playerVelocityY -= 0.015;
-            playerGroup.position.y += playerVelocityY;
+            const elapsedTime = clock.getElapsedTime();
+            grassMaterial.uniforms.time.value = elapsedTime;
+            grassMaterial.uniforms.playerPos.value.copy(playerGroup.position);
 
-            // Simple floor collision check
-            const pGx = Math.round(playerGroup.position.x / BLOCK_SIZE);
-            const pGy = Math.round((playerGroup.position.y - 0.5) / BLOCK_SIZE);
-            const pGz = Math.round(playerGroup.position.z / BLOCK_SIZE);
+            mineRadiusRing.position.x = playerGroup.position.x;
+            mineRadiusRing.position.z = playerGroup.position.z;
+
+            // Update Layer HUD Text
+            const depthMeters = Math.abs(Math.min(0, playerGroup.position.y)).toFixed(1);
+            let layerName = "Grass Layer";
+            if (playerGroup.position.y < -20) layerName = "Galaxy Void Layer";
+            else if (playerGroup.position.y < -12) layerName = "Magma Layer";
+            else if (playerGroup.position.y < -6) layerName = "Deepslate Layer";
+            else if (playerGroup.position.y < -2) layerName = "Stone Layer";
             
-            if (terrainMap.has(`${pGx},${pGy},${pGz}`)) {
-                playerGroup.position.y = (pGy + 1) * BLOCK_SIZE;
+            document.getElementById('layer-info').innerText = `Current Depth: -${depthMeters}m (${layerName})`;
+
+            if (keys.i) camDistance = Math.max(0, camDistance - 0.2);
+            if (keys.o) camDistance = Math.min(25, camDistance + 0.2);
+
+            // JUMPING & GRAVITY COLLISION WITH TERRAIN
+            if (keys.space && isGrounded) {
+                playerVelocityY = jumpStrength;
+                isGrounded = false;
+            }
+
+            playerGroup.position.y += playerVelocityY;
+            if (!isGrounded) {
+                playerVelocityY += gravity;
+            }
+
+            // Ground Level Detection based on terrain position
+            if (playerGroup.position.y <= 0) {
+                playerGroup.position.y = 0;
                 playerVelocityY = 0;
                 isGrounded = true;
-            } else {
-                isGrounded = false;
             }
 
-            if (keys.space && isGrounded) {
-                playerVelocityY = 0.35;
-                isGrounded = false;
-            }
+            // MOVEMENT & ANIMATION
+            const currentSpeed = keys.shift ? 0.24 : 0.12;
+            const animFrequency = keys.shift ? 0.30 : 0.18;
 
-            const currentSpeed = keys.shift ? 0.3 : 0.15;
-            let inputX = 0, inputZ = 0;
+            let inputX = 0;
+            let inputZ = 0;
+
             if (keys.w) inputZ -= 1;
             if (keys.s) inputZ += 1;
             if (keys.a) inputX -= 1;
             if (keys.d) inputX += 1;
 
-            if (inputX !== 0 || inputZ !== 0) {
+            const isMoving = inputX !== 0 || inputZ !== 0;
+
+            if (isMoving) {
                 const targetAngle = Math.atan2(inputX, inputZ) + camYaw;
+
                 playerGroup.position.x += Math.sin(targetAngle) * currentSpeed;
                 playerGroup.position.z += Math.cos(targetAngle) * currentSpeed;
-                playerGroup.rotation.y = targetAngle;
+
+                let diff = targetAngle - currentRotation;
+                while (diff < -Math.PI) diff += Math.PI * 2;
+                while (diff > Math.PI) diff -= Math.PI * 2;
+                currentRotation += diff * 0.12;
+
+                playerGroup.rotation.y = currentRotation;
+
+                walkTimer += animFrequency;
+                const swing = Math.sin(walkTimer) * 0.6;
+                leftArm.rotation.x = swing;
+                
+                if (isToolEquipped) {
+                    rightArm.rotation.x = -Math.PI / 4 + (swing * 0.3);
+                } else {
+                    rightArm.rotation.x = -swing;
+                }
+                leftLeg.rotation.x = -swing;
+                rightLeg.rotation.x = swing;
+            } else {
+                leftArm.rotation.x = THREE.MathUtils.lerp(leftArm.rotation.x, 0, 0.1);
+                
+                if (isToolEquipped) {
+                    rightArm.rotation.x = THREE.MathUtils.lerp(rightArm.rotation.x, -Math.PI / 4, 0.1);
+                } else {
+                    rightArm.rotation.x = THREE.MathUtils.lerp(rightArm.rotation.x, 0, 0.1);
+                }
+                leftLeg.rotation.x = THREE.MathUtils.lerp(leftLeg.rotation.x, 0, 0.1);
+                rightLeg.rotation.x = THREE.MathUtils.lerp(rightLeg.rotation.x, 0, 0.1);
             }
 
-            // Camera Tracking
-            const targetPos = playerGroup.position.clone().add(new THREE.Vector3(0, 2, 0));
-            camera.position.set(
-                targetPos.x + camDistance * Math.sin(camYaw) * Math.cos(camPitch),
-                targetPos.y + camDistance * Math.sin(camPitch),
-                targetPos.z + camDistance * Math.cos(camYaw) * Math.cos(camPitch)
-            );
+            // Mining Swing Animation Override
+            if (swingAnimTimer > 0) {
+                swingAnimTimer -= 0.1 * toolsData[currentToolIndex].speed;
+                rightArm.rotation.x = -Math.PI / 1.5;
+            }
+
+            headGroup.visible = camDistance > 0.8;
+
+            const targetPos = playerGroup.position.clone().add(new THREE.Vector3(0, 2.4, 0));
+
+            const camX = targetPos.x + camDistance * Math.sin(camYaw) * Math.cos(camPitch);
+            const camY = targetPos.y + camDistance * Math.sin(camPitch);
+            const camZ = targetPos.z + camDistance * Math.cos(camYaw) * Math.cos(camPitch);
+
+            camera.position.set(camX, camY, camZ);
             camera.lookAt(targetPos);
 
-            updateHUD();
             renderer.render(scene, camera);
         }
 
