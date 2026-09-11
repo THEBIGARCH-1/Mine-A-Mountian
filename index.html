@@ -23,18 +23,82 @@
             pointer-events: none;
             line-height: 1.6;
             box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            font-size: 14px;
         }
         #ui-hud {
             position: absolute;
             bottom: 20px;
             left: 20px;
-            background: rgba(0, 0, 0, 0.7);
+            background: rgba(0, 0, 0, 0.8);
             color: white;
-            padding: 10px 20px;
-            border-radius: 8px;
+            padding: 12px 20px;
+            border-radius: 10px;
             font-size: 18px;
             font-weight: bold;
             box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            line-height: 1.5;
+        }
+        #shop-ui {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 280px;
+            background: rgba(0, 0, 0, 0.85);
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+            font-size: 14px;
+        }
+        #shop-ui h3 {
+            margin-top: 0;
+            text-align: center;
+            color: #ffd700;
+            border-bottom: 2px solid #444;
+            padding-bottom: 8px;
+        }
+        .pickaxe-card {
+            background: rgba(255, 255, 255, 0.1);
+            margin-bottom: 10px;
+            padding: 10px;
+            border-radius: 6px;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        .pickaxe-card.owned {
+            border: 2px solid #00ffaa;
+        }
+        .pickaxe-card button {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 6px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .pickaxe-card button:disabled {
+            background: #555;
+            cursor: not-allowed;
+        }
+        #notification {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.9);
+            color: #ffd700;
+            padding: 20px 40px;
+            border-radius: 10px;
+            font-size: 22px;
+            font-weight: bold;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            text-align: center;
+            box-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
+            z-index: 100;
         }
     </style>
 </head>
@@ -42,15 +106,61 @@
 
     <div id="instructions">
         WASD: Fast Move | SHIFT: Sprint | SPACE: Jump<br>
-        LEFT / RIGHT-CLICK & Drag OR ARROWS: Rotate Camera | Scroll: Zoom<br>
-        <strong>Press 'E'</strong> near a shaking rock to Mine / Collect Gem!
+        LEFT / RIGHT-CLICK & Drag OR ARROWS: Rotate Camera<br>
+        <strong>Hold / Tap 'E'</strong> near a shaking rock to Mine!
     </div>
 
-    <div id="ui-hud">Gems: <span id="gem-count">0</span> 💎</div>
+    <div id="ui-hud">
+        Gems: <span id="gem-count" style="color: #00ffcc;">0</span> 💎<br>
+        Pickaxe: <span id="current-pickaxe" style="color: #ffd700;">Rusty Pickaxe</span> (Dmg: <span id="current-damage">1</span>)
+    </div>
+
+    <div id="shop-ui">
+        <h3>⛏️ Pickaxe Shop</h3>
+        <div id="shop-list"></div>
+    </div>
+
+    <div id="notification"></div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
     <script>
+        // --- GAME STATE & CONFIGS ---
+        let gemCount = 0;
+        let currentPickaxeIndex = 0;
+
+        const pickaxes = [
+            { name: "Rusty Pickaxe", damage: 1, cost: 0, color: 0x8b5a2b },
+            { name: "Stone Pickaxe", damage: 3, cost: 25, color: 0x888888 },
+            { name: "Iron Pickaxe", damage: 8, cost: 100, color: 0xcccccc },
+            { name: "Gold Pickaxe", damage: 20, cost: 400, color: 0xffd700 },
+            { name: "Cosmic Pickaxe", damage: 50, cost: 1500, color: 0x9400d3 }
+        ];
+
+        // 5 Rock Rarities (Each has 5 specific rock types & colors)
+        const rockTiers = [
+            { 
+                name: "Common", hp: 3, color: 0x555555, ringColor: 0xffffff, gemValue: 1,
+                types: ["Cobblestone", "Basalt", "Pebble Rock", "Granite", "Sandstone"]
+            },
+            { 
+                name: "Uncommon", hp: 10, color: 0x2e8b57, ringColor: 0x00ff00, gemValue: 5,
+                types: ["Mossy Boulder", "Limestone", "Diorite", "Slate", "Serpentine"]
+            },
+            { 
+                name: "Rare", hp: 30, color: 0x1e90ff, ringColor: 0x00bfff, gemValue: 20,
+                types: ["Sapphire Rock", "Lapis Ore", "Azurite", "Cobalt Stone", "Sodalite"]
+            },
+            { 
+                name: "Epic", hp: 90, color: 0x9932cc, ringColor: 0xda70d6, gemValue: 80,
+                types: ["Amethyst Cluster", "Ruby Rock", "Garnet Stone", "Topaz Node", "Morganite"]
+            },
+            { 
+                name: "Cosmic", hp: 250, color: 0xff4500, ringColor: 0xffd700, gemValue: 300,
+                types: ["Obsidian Core", "Meteorite", "Nether Rock", "Void Crystal", "Cosmic Monolith"]
+            }
+        ];
+
         // --- 1. SCENE SETUP ---
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x87ceeb);
@@ -134,11 +244,7 @@
         const phases = new Float32Array(grassCount);
 
         for (let i = 0; i < grassCount; i++) {
-            dummy.position.set(
-                (Math.random() - 0.5) * 130,
-                0,
-                (Math.random() - 0.5) * 130
-            );
+            dummy.position.set((Math.random() - 0.5) * 130, 0, (Math.random() - 0.5) * 130);
             dummy.rotation.y = Math.random() * Math.PI * 2;
             const scale = 0.75 + Math.random() * 0.55;
             dummy.scale.set(scale, scale, scale);
@@ -149,34 +255,42 @@
         grassGeometry.setAttribute('phase', new THREE.InstancedBufferAttribute(phases, 1));
         scene.add(grassField);
 
-        // --- 5. DETAILED ROCKS & DYNAMIC ENTITIES ---
-        // Detailed, faceted custom rock geometry (Icosahedron with flat shading)
+        // --- 5. ROCKS WITH RARITIES & HEALTH ---
         const detailedRockGeo = new THREE.IcosahedronGeometry(1, 1);
-        const rockMaterial = new THREE.MeshStandardMaterial({ 
-            color: 0x555555, 
-            roughness: 0.9, 
-            metalness: 0.1, 
-            flatShading: true 
-        });
-        
-        const rockCount = 50;
+        const rockCount = 55;
         const rocksList = [];
 
         const ringGeo = new THREE.RingGeometry(1.0, 1.25, 32);
         ringGeo.rotateX(-Math.PI / 2);
-        const ringMat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide });
 
         for (let i = 0; i < rockCount; i++) {
             let rx = (Math.random() - 0.5) * 120;
             let rz = (Math.random() - 0.5) * 120;
-            
             if (Math.hypot(rx, rz) < 6) { rx += 10; rz += 10; }
+
+            // Determine Rock Tier based on weighted rarity distribution
+            let randTierRoll = Math.random();
+            let tierIndex = 0;
+            if (randTierRoll > 0.60) tierIndex = 1; // Uncommon (40%)
+            if (randTierRoll > 0.85) tierIndex = 2; // Rare (15%)
+            if (randTierRoll > 0.96) tierIndex = 3; // Epic (4%)
+            if (randTierRoll > 0.99) tierIndex = 4; // Cosmic (1%)
+
+            const tier = rockTiers[tierIndex];
+            const typeName = tier.types[Math.floor(Math.random() * tier.types.length)];
 
             const baseScaleX = 0.8 + Math.random() * 0.8;
             const baseScaleY = 0.7 + Math.random() * 0.7;
             const baseScaleZ = 0.8 + Math.random() * 0.8;
 
-            const rockMesh = new THREE.Mesh(detailedRockGeo, rockMaterial);
+            const rockMat = new THREE.MeshStandardMaterial({ 
+                color: tier.color, 
+                roughness: 0.8, 
+                metalness: 0.2, 
+                flatShading: true 
+            });
+
+            const rockMesh = new THREE.Mesh(detailedRockGeo, rockMat);
             rockMesh.position.set(rx, baseScaleY * 0.5, rz);
             const baseRotX = Math.random() * 0.3;
             const baseRotY = Math.random() * Math.PI;
@@ -185,6 +299,7 @@
             rockMesh.scale.set(baseScaleX, baseScaleY, baseScaleZ);
             scene.add(rockMesh);
 
+            const ringMat = new THREE.MeshBasicMaterial({ color: tier.ringColor, side: THREE.DoubleSide });
             const ringMesh = new THREE.Mesh(ringGeo, ringMat);
             ringMesh.position.set(rx, 0.05, rz);
             const ringRadius = Math.max(baseScaleX, baseScaleZ) * 1.35;
@@ -196,13 +311,16 @@
             rocksList.push({
                 mesh: rockMesh,
                 ring: ringMesh,
+                tier: tier,
+                typeName: typeName,
+                maxHp: tier.hp,
+                hp: tier.hp,
                 x: rx, z: rz,
-                baseX: rx, baseZ: rz,
                 baseY: baseScaleY * 0.5,
                 baseRotZ: baseRotZ,
                 baseScale: new THREE.Vector3(baseScaleX, baseScaleY, baseScaleZ),
                 radius: boundingRadius,
-                state: 'intact', // intact -> rising -> shattered -> gem
+                state: 'intact',
                 gem: null,
                 shards: [],
                 riseProgress: 0
@@ -230,7 +348,7 @@
         const shirtMat = new THREE.MeshLambertMaterial({ color: 0x0066cc });
         const pantsMat = new THREE.MeshLambertMaterial({ color: 0x222222 });
         const baconHairMat = new THREE.MeshLambertMaterial({ color: 0x5a2d0c });
-        const backpackMat = new THREE.MeshLambertMaterial({ color: 0x8b4513 }); // Brown leather backpack
+        const backpackMat = new THREE.MeshLambertMaterial({ color: 0x8b4513 });
 
         const headGroup = new THREE.Group();
         headGroup.position.y = 2.4;
@@ -252,7 +370,6 @@
         torso.position.y = 1.3;
         playerGroup.add(torso);
 
-        // Inventory Backpack attached to the back of the torso
         const backpack = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.9, 0.4), backpackMat);
         backpack.position.set(0, 1.3, -0.45);
         playerGroup.add(backpack);
@@ -270,7 +387,7 @@
         const leftLeg = createLimb(new THREE.BoxGeometry(0.5, 1.2, 0.5), pantsMat, new THREE.Vector3(-0.35, 0.6, 0));
         const rightLeg = createLimb(new THREE.BoxGeometry(0.5, 1.2, 0.5), pantsMat, new THREE.Vector3(0.35, 0.6, 0));
 
-        // --- 7. CONTROLS & PHYSICS ---
+        // --- 7. CONTROLS & UI MANAGEMENT ---
         const keys = { 
             w: false, a: false, s: false, d: false, 
             ArrowLeft: false, ArrowRight: false, ArrowUp: false, ArrowDown: false,
@@ -290,7 +407,6 @@
             if (e.code === "Space") keys.space = false;
             if (e.key === "Shift" || e.code === "ShiftLeft") keys.shift = false;
             if (e.key.toLowerCase() === "e") keys.e = false;
-            if (keys.hasOwnProperty(e.key)) keys.label = false;
             const key = e.key.toLowerCase();
             if (keys.hasOwnProperty(key)) keys[key] = false; 
         });
@@ -304,9 +420,7 @@
         let camPitch = 0.3;
         let camDistance = 8.0;
         let isMouseDown = false;
-        let gemCount = 0;
-
-        // Active animations tracking collection flight path
+        let eKeyProcessed = false;
         const flyingGems = [];
 
         window.addEventListener('mousedown', (e) => {
@@ -327,6 +441,48 @@
             camDistance += e.deltaY * 0.005;
             camDistance = Math.max(1, Math.min(35, camDistance));
         });
+
+        // Setup Shop UI Generation
+        function updateShopUI() {
+            const listEl = document.getElementById('shop-list');
+            listEl.innerHTML = '';
+            pickaxes.forEach((p, index) => {
+                const isOwned = index <= currentPickaxeIndex;
+                const isNext = index === currentPickaxeIndex + 1;
+                const canAfford = gemCount >= p.cost;
+
+                const card = document.createElement('div');
+                card.className = `pickaxe-card ${isOwned ? 'owned' : ''}`;
+                card.innerHTML = `
+                    <div><strong>${p.name}</strong></div>
+                    <div style="font-size:12px; color:#aaa;">Damage: +${p.damage}</div>
+                    ${!isOwned ? `<div style="font-size:12px; color:#ffd700;">Cost: ${p.cost} Gems</div>` : ''}
+                    ${isOwned ? '<div style="color:#00ffaa; font-size:12px; font-weight:bold;">UNLOCKED</div>' : 
+                      `<button ${!isNext || !canAfford ? 'disabled' : ''} onclick="buyPickaxe(${index})">Purchase</button>`}
+                `;
+                listEl.appendChild(card);
+            });
+            document.getElementById('gem-count').innerText = gemCount;
+            document.getElementById('current-pickaxe').innerText = pickaxes[currentPickaxeIndex].name;
+            document.getElementById('current-damage').innerText = pickaxes[currentPickaxeIndex].damage;
+        }
+
+        window.buyPickaxe = function(index) {
+            const p = pickaxes[index];
+            if (gemCount >= p.cost && index === currentPickaxeIndex + 1) {
+                gemCount -= p.cost;
+                currentPickaxeIndex = index;
+                updateShopUI();
+                showNotification(`Purchased ${p.name}!`);
+            }
+        };
+
+        function showNotification(text) {
+            const notif = document.getElementById('notification');
+            notif.innerText = text;
+            notif.style.opacity = '1';
+            setTimeout(() => { notif.style.opacity = '0'; }, 2000);
+        }
 
         let currentRotation = 0;
         let walkTimer = 0;
@@ -426,7 +582,7 @@
                 rightLeg.rotation.x = THREE.MathUtils.lerp(rightLeg.rotation.x, 0, 0.2);
             }
 
-            // FIND CLOSEST ROCK FOR INTERACTION
+            // FIND CLOSEST ROCK
             const playerPos = playerGroup.position;
             const interactionDistance = 4.0;
             
@@ -442,7 +598,7 @@
                 }
             }
 
-            // HANDLE ROCK STATES & MINING MECHANICS
+            // HANDLE ROCK STATES, DAMAGE, AND MINING
             for (const rock of rocksList) {
                 if (rock === closestRock) {
                     if (rock.state === 'intact') {
@@ -452,42 +608,42 @@
                         const shakeOffset = Math.sin(elapsedTime * 35) * 0.05;
                         rock.mesh.rotation.z = rock.baseRotZ + shakeOffset;
 
-                        // PRESS 'E' TO TRIGGER MINING RISE & SHATTER
-                        if (keys.e) {
-                            rock.state = 'rising';
-                            rock.ring.visible = false;
+                        // PRESS 'E' TO MINE DAMAGE
+                        if (keys.e && !eKeyProcessed) {
+                            eKeyProcessed = true;
+                            const damage = pickaxes[currentPickaxeIndex].damage;
+                            rock.hp -= damage;
+                            showNotification(`Hit ${rock.typeName}! (-${damage} HP) [${Math.max(0, rock.hp)}/${rock.maxHp}]`);
+
+                            if (rock.hp <= 0) {
+                                rock.state = 'rising';
+                                rock.ring.visible = false;
+                            }
                         }
                     } else if (rock.state === 'rising') {
-                        // Rising animation out of ground
                         rock.riseProgress += 0.05;
                         rock.mesh.position.y = rock.baseY + Math.min(rock.riseProgress * 1.5, 2.0);
                         
                         if (rock.riseProgress >= 1.0) {
                             rock.state = 'shattered';
-                            rock.mesh.visible = false; // Hide intact rock
+                            rock.mesh.visible = false;
 
-                            // Spawn Rock Shards falling apart
                             const shardGeo = new THREE.TetrahedronGeometry(0.3, 0);
                             for (let s = 0; s < 6; s++) {
-                                const shard = new THREE.Mesh(shardGeo, rockMaterial);
+                                const shard = new THREE.Mesh(shardGeo, rock.mesh.material);
                                 shard.position.copy(rock.mesh.position);
                                 shard.userData = {
-                                    vel: new THREE.Vector3(
-                                        (Math.random() - 0.5) * 0.25,
-                                        Math.random() * 0.2 + 0.1,
-                                        (Math.random() - 0.5) * 0.25
-                                    ),
+                                    vel: new THREE.Vector3((Math.random() - 0.5) * 0.25, Math.random() * 0.2 + 0.1, (Math.random() - 0.5) * 0.25),
                                     rotSpeed: new THREE.Vector3(Math.random(), Math.random(), Math.random())
                                 };
                                 scene.add(shard);
                                 rock.shards.push(shard);
                             }
 
-                            // Spawn Levitating Emerald Gem
                             const gemGeo = new THREE.OctahedronGeometry(0.4, 0);
                             const gemMat = new THREE.MeshStandardMaterial({ 
-                                color: 0x00ffcc, 
-                                emissive: 0x00aa88, 
+                                color: rock.tier.ringColor, 
+                                emissive: rock.tier.ringColor, 
                                 roughness: 0.2, 
                                 metalness: 0.8 
                             });
@@ -497,22 +653,22 @@
                             rock.gem = gemMesh;
                         }
                     } else if (rock.state === 'shattered') {
-                        // Float gem up and down awaiting collection
                         if (rock.gem) {
                             rock.gem.position.y = rock.baseY + 1.2 + Math.sin(elapsedTime * 4) * 0.2;
                             rock.gem.rotation.y += 0.03;
 
-                            // Press 'E' when close to levitating gem to collect it into backpack
-                            if (keys.e) {
+                            if (keys.e && !eKeyProcessed) {
+                                eKeyProcessed = true;
                                 rock.state = 'collected';
                                 const gemToFly = rock.gem;
                                 rock.gem = null;
 
-                                // Add to flying inventory animation pool
                                 flyingGems.push({
                                     mesh: gemToFly,
+                                    value: rock.tier.gemValue,
                                     progress: 0
                                 });
+                                showNotification(`Collected ${rock.tier.name} Gem! (+${rock.tier.gemValue} Gems)`);
                             }
                         }
                     }
@@ -524,15 +680,13 @@
                     }
                 }
 
-                // Animate Shards falling to ground
                 if (rock.shards.length > 0) {
                     for (const shard of rock.shards) {
                         shard.position.add(shard.userData.vel);
-                        shard.userData.vel.y -= 0.02; // gravity
+                        shard.userData.vel.y -= 0.02;
                         shard.rotation.x += shard.userData.rotSpeed.x * 0.05;
                         shard.rotation.y += shard.userData.rotSpeed.y * 0.05;
 
-                        // Stop at ground level
                         if (shard.position.y <= 0.1) {
                             shard.position.y = 0.1;
                             shard.userData.vel.set(0, 0, 0);
@@ -541,23 +695,26 @@
                 }
             }
 
-            // ANIMATE FLYING GEMS INTO THE BACKPACK
+            if (!keys.e) {
+                eKeyProcessed = false;
+            }
+
+            // ANIMATE FLYING GEMS INTO BACKPACK
             for (let i = flyingGems.length - 1; i >= 0; i--) {
                 const fg = flyingGems[i];
-                fg.progress += 0.03; // Flight speed
+                fg.progress += 0.03;
 
-                // Compute exact backpack world position dynamically
                 const backpackWorldPos = new THREE.Vector3();
                 backpack.getWorldPosition(backpackWorldPos);
 
                 fg.mesh.position.lerp(backpackWorldPos, fg.progress);
-                fg.mesh.scale.multiplyScalar(0.95); // shrink as it enters inventory
+                fg.mesh.scale.multiplyScalar(0.95);
 
                 if (fg.progress >= 1.0 || fg.mesh.position.distanceTo(backpackWorldPos) < 0.3) {
                     scene.remove(fg.mesh);
                     flyingGems.splice(i, 1);
-                    gemCount++;
-                    document.getElementById('gem-count').innerText = gemCount;
+                    gemCount += fg.value;
+                    updateShopUI();
                 }
             }
 
@@ -574,6 +731,7 @@
             renderer.render(scene, camera);
         }
 
+        updateShopUI();
         animate();
 
         window.addEventListener('resize', () => {
@@ -583,4 +741,4 @@
         });
     </script>
 </body>
-</html>s
+</html>
