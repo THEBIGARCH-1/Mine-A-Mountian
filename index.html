@@ -3,29 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Roblox Blocky Mountain Mining Simulator - Ultra Detail</title>
+    <title>Mine a Mountain (Roblox Style)</title>
     <style>
         body { 
             margin: 0; 
             overflow: hidden; 
-            font-family: 'Fredoka One', 'Segoe UI', Tahoma, Geneva, sans-serif; 
-            user-select: none;
-            background-color: #000;
-        }
-
-        /* CROSSHAIR */
-        #crosshair {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            width: 12px;
-            height: 12px;
-            margin-top: -6px;
-            margin-left: -6px;
-            border: 2px solid rgba(255, 255, 255, 0.8);
-            border-radius: 50%;
-            pointer-events: none;
-            z-index: 10;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            user-select: none; 
+            background: #000;
         }
 
         #hud {
@@ -148,13 +133,11 @@
 </head>
 <body>
 
-    <div id="crosshair"></div>
-
     <div id="hud">
         <div class="hud-box" id="money-display">💰 Cash: $0</div>
-        <div class="hud-box" id="inventory-info">🎒 Inventory: 0 Blocks</div>
-        <div class="hud-box" id="layer-info">⛰️ Depth: 0m (Grass Peak)</div>
-        <button id="sell-btn" onclick="sellBlocks()">💰 SELL ALL ORES</button>
+        <div class="hud-box" id="inventory-info">🎒 Inventory: 0 Ores</div>
+        <div class="hud-box" id="layer-info">⛰️ Depth: 0.0m (Grass Surface)</div>
+        <button id="sell-btn" onclick="sellOres()">💰 SELL ALL ORES</button>
     </div>
 
     <div id="shop-container">
@@ -164,141 +147,127 @@
 
     <div id="instructions">
         🎮 <b>CONTROLS:</b><br>
-        • <b>WASD</b>: Move Character | <b>SHIFT</b>: Sprint | <b>SPACE</b>: Jump<br>
-        • <b>DRAG TOUCHPAD/MOUSE</b>: Smooth 360 Camera Rotate<br>
-        • <b>PRESS 'Q' or CLICK</b>: Destroy Target Block!
+        • <b>WASD</b>: Move | <b>SHIFT</b>: Sprint | <b>SPACE</b>: Jump<br>
+        • <b>DRAG TOUCHPAD / SCREEN</b>: Smooth 360 Camera Rotate<br>
+        • <b>PRESS 'Q' or LEFT CLICK</b>: Mine Jagged Pit Underground!
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
     <script>
-        // --- 1. GAME ECONOMY & DATA ---
+        // --- 1. GAME ECONOMY & TOOL TIERS ---
         let playerMoney = 0;
-        let minedInventory = { grass: 0, stone: 0, deepslate: 0, magma: 0, void: 0, gem: 0 };
-        let totalBlocksMined = 0;
+        let minedOres = { grass: 0, stone: 0, deepslate: 0, magma: 0, void: 0 };
+        let totalOresMined = 0;
 
-        const blockValues = { grass: 2, stone: 8, deepslate: 35, magma: 180, void: 850, gem: 5000 };
+        const oreValues = { grass: 2, stone: 8, deepslate: 35, magma: 180, void: 850 };
 
         const toolsData = [
-            { id: 1, name: "Rusty Pick", cost: 0, power: 1, speed: 1.0, radius: 1, color: 0x8b4513 },
-            { id: 2, name: "Heavy Shovel", cost: 250, power: 2, speed: 1.3, radius: 1, color: 0xaaaaaa },
-            { id: 3, name: "Steel Drill", cost: 1800, power: 5, speed: 1.8, radius: 2, color: 0x4682b4 },
-            { id: 4, name: "Gold Excavator", cost: 12000, power: 12, speed: 2.4, radius: 2, color: 0xffd700 },
-            { id: 5, name: "Diamond Breaker", cost: 75000, power: 25, speed: 3.2, radius: 3, color: 0x00ffff },
-            { id: 6, name: "Magma Buster", cost: 400000, power: 55, speed: 4.2, radius: 3, color: 0xff4500 },
-            { id: 7, name: "Plasma Laser", cost: 2200000, power: 110, speed: 5.5, radius: 4, color: 0x9400d3 },
-            { id: 8, name: "Void Smasher", cost: 12000000, power: 250, speed: 7.0, radius: 4, color: 0x111111 },
-            { id: 9, name: "Quantum Beam", cost: 45000000, power: 600, speed: 9.0, radius: 5, color: 0x00ff66 },
-            { id: 10, name: "Galaxy Obliterator", cost: 150000000, power: 1500, speed: 12.0, radius: 6, color: 0xff00ff }
+            { id: 1, name: "Rusty Pick", cost: 0, power: 0.5, speed: 1.0, radius: 1.5, color: 0x8b4513, geo: "pick" },
+            { id: 2, name: "Iron Chisel", cost: 250, power: 1.0, speed: 1.4, radius: 1.8, color: 0xaaaaaa, geo: "chisel" },
+            { id: 3, name: "Steel Drill", cost: 1800, power: 1.8, speed: 1.8, radius: 2.2, color: 0x4682b4, geo: "drill" },
+            { id: 4, name: "Gold Hammer", cost: 12000, power: 3.0, speed: 2.3, radius: 2.6, color: 0xffd700, geo: "pick" },
+            { id: 5, name: "Diamond Excavator", cost: 75000, power: 5.0, speed: 3.0, radius: 3.2, color: 0x00ffff, geo: "drill" },
+            { id: 6, name: "Magma Buster", cost: 400000, power: 8.5, speed: 4.0, radius: 3.8, color: 0xff4500, geo: "chisel" },
+            { id: 7, name: "Plasma Cutter", cost: 2200000, power: 14.0, speed: 5.2, radius: 4.5, color: 0x9400d3, geo: "drill" },
+            { id: 8, name: "Void Smasher", cost: 12000000, power: 24.0, speed: 6.8, radius: 5.2, color: 0x111111, geo: "pick" },
+            { id: 9, name: "Quantum Annihilator", cost: 45000000, power: 42.0, speed: 8.5, radius: 6.0, color: 0x00ff66, geo: "drill" },
+            { id: 10, name: "Galaxy Obliterator", cost: 150000000, power: 80.0, speed: 11.0, radius: 7.2, color: 0xff00ff, geo: "galaxy" }
         ];
 
         let ownedTools = [true, false, false, false, false, false, false, false, false, false];
         let currentToolIndex = 0;
         let isToolEquipped = true;
         let lastMineTime = 0;
+        let swingAnimTimer = 0;
 
-        // --- 2. SCENE & LIGHTING SETUP ---
+        // --- 2. THREE.JS SCENE SETUP ---
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x6eb1ff);
-        scene.fog = new THREE.FogExp2(0x6eb1ff, 0.005);
+        scene.background = new THREE.Color(0x87ceeb);
+        scene.fog = new THREE.FogExp2(0x87ceeb, 0.008);
 
-        const camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.shadowMap.enabled = true;
-        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         document.body.appendChild(renderer.domElement);
 
         const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
         scene.add(ambientLight);
 
-        const dirLight = new THREE.DirectionalLight(0xfffaed, 1.0);
-        dirLight.position.set(60, 120, 60);
+        const dirLight = new THREE.DirectionalLight(0xfffaed, 0.9);
+        dirLight.position.set(40, 80, 40);
         dirLight.castShadow = true;
-        dirLight.shadow.mapSize.width = 2048;
-        dirLight.shadow.mapSize.height = 2048;
         scene.add(dirLight);
 
-        // --- 3. HIGH-DETAIL VOXEL MOUNTAIN TERRAIN ---
-        const GRID_SIZE = 48;
-        const BLOCK_SIZE = 1.6;
-        const terrainMap = new Map();
+        // --- 3. MULTI-LAYER FLAT TERRAIN WITH JAGGED DEFORMATION ---
+        const groundSize = 140;
+        const groundSegments = 140;
+        const groundGeometry = new THREE.PlaneGeometry(groundSize, groundSize, groundSegments, groundSegments);
+        groundGeometry.rotateX(-Math.PI / 2);
 
-        // Edge Outlines for Roblox Block Look
-        const boxGeo = new THREE.BoxGeometry(BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
-        const edgesGeo = new THREE.EdgesGeometry(boxGeo);
-        const lineMat = new THREE.LineBasicMaterial({ color: 0x000000, linewidth: 1 });
+        const posAttr = groundGeometry.attributes.position;
 
-        const blockMaterials = {
-            grass: new THREE.MeshStandardMaterial({ color: 0x388e3c, roughness: 0.8 }),
-            stone: new THREE.MeshStandardMaterial({ color: 0x757575, roughness: 0.6 }),
-            deepslate: new THREE.MeshStandardMaterial({ color: 0x212121, roughness: 0.4 }),
-            magma: new THREE.MeshStandardMaterial({ color: 0xe65100, emissive: 0xff3d00, emissiveIntensity: 0.4 }),
-            void: new THREE.MeshStandardMaterial({ color: 0x4a148c, emissive: 0x7b1fa2, emissiveIntensity: 0.5 }),
-            gem: new THREE.MeshStandardMaterial({ color: 0x00e676, emissive: 0x00e676, emissiveIntensity: 0.8, metalness: 0.9 })
-        };
+        // Dynamic multi-layer depth colors
+        const layerColors = [
+            { depth: 0, color: new THREE.Color(0x2e6f1a) },    // Grass surface
+            { depth: -3, color: new THREE.Color(0x666666) },   // Stone layer
+            { depth: -8, color: new THREE.Color(0x282830) },   // Deepslate layer
+            { depth: -16, color: new THREE.Color(0xd84315) },  // Magma layer
+            { depth: -26, color: new THREE.Color(0x4a148c) }   // Galaxy Void layer
+        ];
 
-        const terrainGroup = new THREE.Group();
-        scene.add(terrainGroup);
+        const colorAttr = new THREE.BufferAttribute(new Float32Array(posAttr.count * 3), 3);
+        groundGeometry.setAttribute('color', colorAttr);
 
-        function getBlockType(y) {
-            if (Math.random() < 0.01) return 'gem'; // Rare shiny gem chance!
-            if (y >= 0) return 'grass';
-            if (y >= -8 * BLOCK_SIZE) return 'stone';
-            if (y >= -18 * BLOCK_SIZE) return 'deepslate';
-            if (y >= -30 * BLOCK_SIZE) return 'magma';
-            return 'void';
-        }
+        function updateTerrainColors() {
+            for (let i = 0; i < posAttr.count; i++) {
+                const y = posAttr.getY(i);
+                let vertexColor = layerColors[0].color.clone();
 
-        // Generate Detailed Blocky Peak
-        for (let x = -GRID_SIZE / 2; x < GRID_SIZE / 2; x++) {
-            for (let z = -GRID_SIZE / 2; z < GRID_SIZE / 2; z++) {
-                const distFromCenter = Math.sqrt(x * x + z * z);
-                const mountainHeight = Math.max(0, Math.floor((22 - distFromCenter * 0.95)));
-
-                for (let y = mountainHeight; y >= -35; y--) {
-                    const blockType = getBlockType(y * BLOCK_SIZE);
-                    const mesh = new THREE.Mesh(boxGeo, blockMaterials[blockType]);
-                    mesh.position.set(x * BLOCK_SIZE, y * BLOCK_SIZE, z * BLOCK_SIZE);
-                    mesh.castShadow = true;
-                    mesh.receiveShadow = true;
-
-                    // Add Roblox Outlines
-                    const wireframe = new THREE.LineSegments(edgesGeo, lineMat);
-                    mesh.add(wireframe);
-
-                    mesh.userData = { gridX: x, gridY: y, gridZ: z, type: blockType, hp: getBlockHp(blockType) };
-                    
-                    terrainGroup.add(mesh);
-                    terrainMap.set(`${x},${y},${z}`, mesh);
+                for (let l = 0; l < layerColors.length - 1; l++) {
+                    const c1 = layerColors[l];
+                    const c2 = layerColors[l + 1];
+                    if (y <= c1.depth && y >= c2.depth) {
+                        const factor = (y - c1.depth) / (c2.depth - c1.depth);
+                        vertexColor.copy(c1.color).lerp(c2.color, factor);
+                        break;
+                    } else if (y < layerColors[layerColors.length - 1].depth) {
+                        vertexColor.copy(layerColors[layerColors.length - 1].color);
+                    }
                 }
+
+                colorAttr.setXYZ(i, vertexColor.r, vertexColor.g, vertexColor.b);
             }
+            colorAttr.needsUpdate = true;
         }
 
-        function getBlockHp(type) {
-            switch(type) {
-                case 'grass': return 1;
-                case 'stone': return 4;
-                case 'deepslate': return 12;
-                case 'magma': return 30;
-                case 'void': return 80;
-                case 'gem': return 100;
-                default: return 1;
-            }
-        }
+        updateTerrainColors();
 
-        // Target Highlight Box
-        const highlightBox = new THREE.BoxHelper(new THREE.Mesh(boxGeo), 0xffff00);
-        highlightBox.visible = false;
-        scene.add(highlightBox);
+        const groundMaterial = new THREE.MeshLambertMaterial({ 
+            vertexColors: true,
+            flatShading: true 
+        });
+        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+        ground.receiveShadow = true;
+        scene.add(ground);
 
-        // --- 4. MINING PARTICLE SYSTEM ---
+        // Mine Indicator Ring
+        const mineRadiusRing = new THREE.Mesh(
+            new THREE.RingGeometry(2.0, 2.2, 32),
+            new THREE.MeshBasicMaterial({ color: 0x00ffff, side: THREE.DoubleSide, transparent: true, opacity: 0.6 })
+        );
+        mineRadiusRing.rotation.x = -Math.PI / 2;
+        mineRadiusRing.position.y = 0.08;
+        scene.add(mineRadiusRing);
+
+        // --- 4. MINING PARTICLE BURSTS ---
         const particles = [];
-        function createMiningParticles(pos, color) {
-            const particleGeo = new THREE.BoxGeometry(0.3, 0.3, 0.3);
-            const particleMat = new THREE.MeshBasicMaterial({ color: color });
+        function spawnMiningParticles(pos, hexColor) {
+            const particleGeo = new THREE.BoxGeometry(0.2, 0.2, 0.2);
+            const particleMat = new THREE.MeshBasicMaterial({ color: hexColor });
             
-            for (let i = 0; i < 8; i++) {
+            for (let i = 0; i < 12; i++) {
                 const p = new THREE.Mesh(particleGeo, particleMat);
                 p.position.copy(pos);
                 p.userData.velocity = new THREE.Vector3(
@@ -316,8 +285,8 @@
             for (let i = particles.length - 1; i >= 0; i--) {
                 const p = particles[i];
                 p.position.add(p.userData.velocity);
-                p.userData.velocity.y -= 0.02; // Gravity
-                p.userData.life -= 0.05;
+                p.userData.velocity.y -= 0.025;
+                p.userData.life -= 0.06;
                 p.scale.multiplyScalar(0.92);
                 if (p.userData.life <= 0) {
                     scene.remove(p);
@@ -326,9 +295,9 @@
             }
         }
 
-        // --- 5. CHARACTER SETUP ---
+        // --- 5. ROBLOX CHARACTER & TOOL DISPLAY ---
         const playerGroup = new THREE.Group();
-        playerGroup.position.set(0, 40, 0);
+        playerGroup.position.set(0, 0, 0);
         scene.add(playerGroup);
 
         const skinMat = new THREE.MeshLambertMaterial({ color: 0xffcc99 });
@@ -358,15 +327,15 @@
         toolContainer.position.set(0, -0.8, 0.2);
         rightArm.add(toolContainer);
 
-        // --- 6. SHOP & UI SYSTEM ---
-        function sellBlocks() {
+        // --- 6. SHOP & ECONOMY SYSTEM ---
+        function sellOres() {
             let earnings = 0;
-            for (let type in minedInventory) {
-                earnings += minedInventory[type] * blockValues[type];
-                minedInventory[type] = 0;
+            for (let type in minedOres) {
+                earnings += minedOres[type] * oreValues[type];
+                minedOres[type] = 0;
             }
             playerMoney += earnings;
-            totalBlocksMined = 0;
+            totalOresMined = 0;
             updateHUD();
             updateShopUI();
         }
@@ -376,12 +345,12 @@
             const headMat = new THREE.MeshStandardMaterial({ color: data.color, roughness: 0.2, metalness: 0.8 });
             const handleMat = new THREE.MeshLambertMaterial({ color: 0x3d2314 });
 
-            const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 1.4), handleMat);
+            const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 1.2), handleMat);
             handle.rotation.x = Math.PI / 3;
             group.add(handle);
 
             const head = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.2, 0.2), headMat);
-            head.position.set(0, 0.5, 0.5);
+            head.position.set(0, 0.4, 0.4);
             group.add(head);
             return group;
         }
@@ -393,6 +362,12 @@
             toolContainer.visible = true;
             while(toolContainer.children.length > 0) toolContainer.remove(toolContainer.children[0]);
             toolContainer.add(buildToolMesh(toolsData[index]));
+            
+            // Adjust Mine Radius Indicator
+            const r = toolsData[index].radius;
+            mineRadiusRing.geometry.dispose();
+            mineRadiusRing.geometry = new THREE.RingGeometry(r * 0.9, r, 32);
+            
             updateShopUI();
         }
 
@@ -416,7 +391,7 @@
                 item.innerHTML = `
                     <div class="item-info">
                         <span class="item-name">Lvl ${tool.id}: ${tool.name}</span>
-                        <span class="item-stats">⚡ PWR: ${tool.power} | 💨 RAD: ${tool.radius}</span>
+                        <span class="item-stats">⚡ PWR: ${tool.power} | 💨 SPD: ${tool.speed}x</span>
                         <span class="item-cost">$${tool.cost.toLocaleString()}</span>
                     </div>
                     <button class="shop-btn" id="btn-tool-${idx}"></button>
@@ -454,26 +429,86 @@
 
         function updateHUD() {
             document.getElementById('money-display').innerText = `💰 Cash: $${playerMoney.toLocaleString()}`;
-            document.getElementById('inventory-info').innerText = `🎒 Inventory: ${totalBlocksMined} Blocks`;
+            document.getElementById('inventory-info').innerText = `🎒 Inventory: ${totalOresMined} Ores`;
             
-            const depth = Math.max(0, Math.floor((35 - playerGroup.position.y))).toFixed(0);
-            let layerName = "Grass Mountain";
-            if (playerGroup.position.y < -30 * BLOCK_SIZE) layerName = "Galaxy Void Layer";
-            else if (playerGroup.position.y < -18 * BLOCK_SIZE) layerName = "Magma Layer";
-            else if (playerGroup.position.y < -8 * BLOCK_SIZE) layerName = "Deepslate Layer";
-            else if (playerGroup.position.y < 0) layerName = "Stone Layer";
+            const depth = Math.abs(Math.min(0, playerGroup.position.y)).toFixed(1);
+            let layerName = "Grass Surface";
+            if (playerGroup.position.y < -26) layerName = "Galaxy Void Layer";
+            else if (playerGroup.position.y < -16) layerName = "Magma Layer";
+            else if (playerGroup.position.y < -8) layerName = "Deepslate Layer";
+            else if (playerGroup.position.y < -3) layerName = "Stone Layer";
             
             document.getElementById('layer-info').innerText = `⛰️ Depth: ${depth}m (${layerName})`;
         }
 
         equipTool(0);
 
-        // --- 7. TOUCHPAD TURNING & Q KEY MINING ---
-        let camYaw = 0, camPitch = 0.3, camDistance = 10.0;
+        // --- 7. JAGGED MINING DEFORMATION MECHANIC ---
+        function triggerMine() {
+            if (!isToolEquipped) return;
+
+            const tool = toolsData[currentToolIndex];
+            const now = performance.now();
+            const cooldown = 500 / tool.speed;
+            if (now - lastMineTime < cooldown) return;
+
+            lastMineTime = now;
+            swingAnimTimer = 1.0;
+
+            deformJaggedGround(mineRadiusRing.position, tool.power, tool.radius);
+        }
+
+        function deformJaggedGround(center, power, radius) {
+            let oresAdded = 0;
+            let currentLayerType = "grass";
+
+            for (let i = 0; i < posAttr.count; i++) {
+                const vx = posAttr.getX(i);
+                const vy = posAttr.getY(i);
+                const vz = posAttr.getZ(i);
+
+                const dist = Math.sqrt((vx - center.x) ** 2 + (vz - center.z) ** 2);
+
+                if (dist < radius) {
+                    // JAGGED NOISE FACTORS
+                    const jaggedNoise = (Math.sin(vx * 3.5) * Math.cos(vz * 3.5) * 0.4) + (Math.random() * 0.3);
+                    const depthDrop = (1.0 - (dist / radius)) * power * (0.8 + jaggedNoise);
+
+                    const newY = vy - depthDrop;
+                    posAttr.setY(i, newY);
+
+                    // Track ore layer type collected
+                    if (newY < -26) currentLayerType = "void";
+                    else if (newY < -16) currentLayerType = "magma";
+                    else if (newY < -8) currentLayerType = "deepslate";
+                    else if (newY < -3) currentLayerType = "stone";
+
+                    oresAdded++;
+                }
+            }
+
+            posAttr.needsUpdate = true;
+            updateTerrainColors();
+            groundGeometry.computeVertexNormals();
+
+            if (oresAdded > 0) {
+                const minedAmount = Math.max(1, Math.floor(power * 2.5));
+                minedOres[currentLayerType] += minedAmount;
+                totalOresMined += minedAmount;
+
+                const col = layerColors.find(l => center.y <= l.depth)?.color.getHex() || 0x2e6f1a;
+                spawnMiningParticles(center.clone().add(new THREE.Vector3(0, 0.5, 0)), col);
+            }
+
+            updateHUD();
+            updateShopUI();
+        }
+
+        // --- 8. TOUCHPAD TURNING & KEYBOARD CONTROLS ---
+        let camYaw = 0, camPitch = 0.3, camDistance = 9.0;
         let isTouchingOrDragging = false;
         let previousMousePosition = { x: 0, y: 0 };
 
-        // SMOOTH TOUCHPAD & MOUSE DRAG TURNING
         window.addEventListener('mousedown', e => {
             if (e.target.closest('#shop-container') || e.target.closest('#hud')) return;
             isTouchingOrDragging = true;
@@ -495,67 +530,17 @@
 
         window.addEventListener('mouseup', () => isTouchingOrDragging = false);
 
-        // RAYCASTING FOR TARGET HIGHLIGHT & MINING
-        const raycaster = new THREE.Raycaster();
-        let currentTargetBlock = null;
+        window.addEventListener('click', (e) => {
+            if (e.target.closest('#shop-container') || e.target.closest('#hud')) return;
+            triggerMine();
+        });
 
-        function updateTargeting() {
-            raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
-            const intersects = raycaster.intersectObjects(terrainGroup.children);
-
-            if (intersects.length > 0 && intersects[0].distance <= 14) {
-                currentTargetBlock = intersects[0].object;
-                highlightBox.visible = true;
-                highlightBox.update(currentTargetBlock);
-            } else {
-                currentTargetBlock = null;
-                highlightBox.visible = false;
-            }
-        }
-
-        function triggerDestroy() {
-            if (!isToolEquipped || !currentTargetBlock) return;
-
-            const tool = toolsData[currentToolIndex];
-            const now = performance.now();
-            if (now - lastMineTime < 350 / tool.speed) return;
-
-            lastMineTime = now;
-            mineVoxelRadius(currentTargetBlock.userData.gridX, currentTargetBlock.userData.gridY, currentTargetBlock.userData.gridZ, tool.power, tool.radius);
-        }
-
-        function mineVoxelRadius(cx, cy, cz, power, radius) {
-            for (let x = -radius; x <= radius; x++) {
-                for (let y = -radius; y <= radius; y++) {
-                    for (let z = -radius; z <= radius; z++) {
-                        if (Math.sqrt(x*x + y*y + z*z) <= radius) {
-                            const key = `${cx + x},${cy + y},${cz + z}`;
-                            const block = terrainMap.get(key);
-                            if (block) {
-                                block.userData.hp -= power;
-                                if (block.userData.hp <= 0) {
-                                    createMiningParticles(block.position, block.material.color);
-                                    minedInventory[block.userData.type]++;
-                                    totalBlocksMined++;
-                                    terrainGroup.remove(block);
-                                    terrainMap.delete(key);
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            updateHUD();
-            updateShopUI();
-        }
-
-        // --- 8. KEYBOARD & MOVEMENT ---
         const keys = { w: false, a: false, s: false, d: false, space: false, shift: false };
 
         window.addEventListener('keydown', e => {
             if (e.code === "Space") keys.space = true;
             if (e.key === "Shift" || e.code === "ShiftLeft") keys.shift = true;
-            if (e.key.toLowerCase() === 'q') triggerDestroy(); // 'Q' KEY DESTROY
+            if (e.key.toLowerCase() === 'q') triggerMine(); // PRESS Q TO DESTROY/MINE!
             if (e.key.toLowerCase() === 'e') {
                 isToolEquipped = !isToolEquipped;
                 toolContainer.visible = isToolEquipped;
@@ -572,40 +557,51 @@
             if (keys.hasOwnProperty(key)) keys[key] = false;
         });
 
-        window.addEventListener('click', (e) => {
-            if (e.target.closest('#shop-container') || e.target.closest('#hud')) return;
-            triggerDestroy();
-        });
+        // --- 9. PLAYER MOVEMENT & TERRAIN COLLISION ---
+        function getGroundHeightAt(x, z) {
+            const gridX = Math.floor((x + groundSize / 2) / groundSize * groundSegments);
+            const gridZ = Math.floor((z + groundSize / 2) / groundSize * groundSegments);
+
+            if (gridX >= 0 && gridX < groundSegments && gridZ >= 0 && gridZ < groundSegments) {
+                const index = gridZ * (groundSegments + 1) + gridX;
+                return posAttr.getY(index);
+            }
+            return 0;
+        }
 
         let playerVelocityY = 0;
-        let isGrounded = false;
+        let isGrounded = true;
+        let walkTimer = 0;
 
-        // --- 9. MAIN GAME LOOP ---
+        // --- 10. MAIN ANIMATION LOOP ---
         function animate() {
             requestAnimationFrame(animate);
 
-            // Gravity & Ground Physics
-            playerVelocityY -= 0.015;
+            // Ground Collision & Gravity
+            const currentTerrainY = getGroundHeightAt(playerGroup.position.x, playerGroup.position.z);
+            
+            if (keys.space && isGrounded) {
+                playerVelocityY = 0.35;
+                isGrounded = false;
+            }
+
             playerGroup.position.y += playerVelocityY;
 
-            const pGx = Math.round(playerGroup.position.x / BLOCK_SIZE);
-            const pGy = Math.round((playerGroup.position.y - 0.5) / BLOCK_SIZE);
-            const pGz = Math.round(playerGroup.position.z / BLOCK_SIZE);
-            
-            if (terrainMap.has(`${pGx},${pGy},${pGz}`)) {
-                playerGroup.position.y = (pGy + 1) * BLOCK_SIZE;
+            if (playerGroup.position.y <= currentTerrainY) {
+                playerGroup.position.y = currentTerrainY;
                 playerVelocityY = 0;
                 isGrounded = true;
             } else {
-                isGrounded = false;
+                playerVelocityY -= 0.015; // Gravity
             }
 
-            if (keys.space && isGrounded) {
-                playerVelocityY = 0.38;
-                isGrounded = false;
-            }
+            // Indicator follows target ground surface
+            mineRadiusRing.position.x = playerGroup.position.x;
+            mineRadiusRing.position.z = playerGroup.position.z;
+            mineRadiusRing.position.y = currentTerrainY + 0.08;
 
-            const currentSpeed = keys.shift ? 0.32 : 0.16;
+            // Character Movement
+            const currentSpeed = keys.shift ? 0.25 : 0.13;
             let inputX = 0, inputZ = 0;
             if (keys.w) inputZ -= 1;
             if (keys.s) inputZ += 1;
@@ -617,10 +613,30 @@
                 playerGroup.position.x += Math.sin(targetAngle) * currentSpeed;
                 playerGroup.position.z += Math.cos(targetAngle) * currentSpeed;
                 playerGroup.rotation.y = targetAngle;
+
+                walkTimer += 0.2;
+                const swing = Math.sin(walkTimer) * 0.6;
+                leftArm.rotation.x = swing;
+                if (isToolEquipped) rightArm.rotation.x = -Math.PI / 4 + (swing * 0.3);
+                else rightArm.rotation.x = -swing;
+                leftLeg.rotation.x = -swing;
+                rightLeg.rotation.x = swing;
+            } else {
+                leftArm.rotation.x = THREE.MathUtils.lerp(leftArm.rotation.x, 0, 0.1);
+                if (isToolEquipped) rightArm.rotation.x = THREE.MathUtils.lerp(rightArm.rotation.x, -Math.PI / 4, 0.1);
+                else rightArm.rotation.x = THREE.MathUtils.lerp(rightArm.rotation.x, 0, 0.1);
+                leftLeg.rotation.x = THREE.MathUtils.lerp(leftLeg.rotation.x, 0, 0.1);
+                rightLeg.rotation.x = THREE.MathUtils.lerp(rightLeg.rotation.x, 0, 0.1);
             }
 
-            // Smooth Camera Follow
-            const targetPos = playerGroup.position.clone().add(new THREE.Vector3(0, 2, 0));
+            // Mining Swing Animation Override
+            if (swingAnimTimer > 0) {
+                swingAnimTimer -= 0.1 * toolsData[currentToolIndex].speed;
+                rightArm.rotation.x = -Math.PI / 1.5;
+            }
+
+            // Camera Tracking
+            const targetPos = playerGroup.position.clone().add(new THREE.Vector3(0, 2.2, 0));
             camera.position.set(
                 targetPos.x + camDistance * Math.sin(camYaw) * Math.cos(camPitch),
                 targetPos.y + camDistance * Math.sin(camPitch),
@@ -628,10 +644,7 @@
             );
             camera.lookAt(targetPos);
 
-            updateTargeting();
             updateParticles();
-            updateHUD();
-
             renderer.render(scene, camera);
         }
 
