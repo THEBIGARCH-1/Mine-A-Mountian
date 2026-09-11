@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Roblox Touchpad Mechanics + Massive Grass Field</title>
+    <title>Smooth Turning Bacon Hair Roblox Character</title>
     <style>
         body { margin: 0; overflow: hidden; font-family: sans-serif; user-select: none; }
         #instructions {
@@ -23,8 +23,8 @@
 <body>
 
     <div id="instructions">
-        WASD to Move<br>
-        Touchpad / Mouse: Right-Click + Drag OR Left-Click + Drag to Rotate Camera<br>
+        WASD to Move (Smooth Turning)<br>
+        Touchpad / Mouse: Drag to Rotate Camera<br>
         Press 'I' to Zoom In | Press 'O' to Zoom Out
     </div>
 
@@ -43,7 +43,7 @@
         document.body.appendChild(renderer.domElement);
 
         // --- 2. LIGHTS ---
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
         scene.add(ambientLight);
 
         const dirLight = new THREE.DirectionalLight(0xfffaed, 0.9);
@@ -51,7 +51,7 @@
         dirLight.castShadow = true;
         scene.add(dirLight);
 
-        // --- 3. MASSIVE 60,000 BLADE INTERACTIVE GRASS ---
+        // --- 3. DENSE INTERACTIVE GRASS ---
         const grassGeometry = new THREE.PlaneGeometry(0.1, 0.6, 1, 4);
         grassGeometry.translate(0, 0.3, 0); 
 
@@ -67,11 +67,9 @@
                     vec3 worldPos = (instanceMatrix * vec4(position, 1.0)).xyz;
                     vec3 pos = position;
 
-                    // Light wind wave
                     float wave = sin(time * 3.0 + phase) * 0.08 * pow(vHeight, 2.0);
                     pos.x += wave;
 
-                    // Trample / Push Grass Under Feet
                     float dist = distance(worldPos.xz, playerPos.xz);
                     float pushRadius = 1.2;
 
@@ -104,7 +102,6 @@
             side: THREE.DoubleSide
         });
 
-        // 60,000 Grass Blades
         const grassCount = 60000;
         const grassField = new THREE.InstancedMesh(grassGeometry, grassMaterial, grassCount);
         const dummy = new THREE.Object3D();
@@ -133,22 +130,91 @@
         ground.rotation.x = -Math.PI / 2;
         scene.add(ground);
 
-        // --- 4. PLAYER CHARACTER ---
+        // --- 4. DYNAMIC ROBLOX FACE TEXTURE ---
+        const canvas = document.createElement('canvas');
+        canvas.width = 256;
+        canvas.height = 256;
+        const ctx = canvas.getContext('2d');
+
+        // Yellow background skin fill for face area
+        ctx.fillStyle = '#ffcc99';
+        ctx.fillRect(0, 0, 256, 256);
+
+        // Eyes
+        ctx.fillStyle = '#111111';
+        ctx.beginPath();
+        ctx.arc(80, 110, 14, 0, Math.PI * 2);
+        ctx.arc(176, 110, 14, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Eye shine dots
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(75, 105, 4, 0, Math.PI * 2);
+        ctx.arc(171, 105, 4, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Smile
+        ctx.lineWidth = 8;
+        ctx.strokeStyle = '#111111';
+        ctx.beginPath();
+        ctx.arc(128, 140, 45, 0.1 * Math.PI, 0.9 * Math.PI, false);
+        ctx.stroke();
+
+        const faceTexture = new THREE.CanvasTexture(canvas);
+
+        // --- 5. BACON HAIR CHARACTER MODEL ---
         const playerGroup = new THREE.Group();
         scene.add(playerGroup);
 
         const skinMat = new THREE.MeshLambertMaterial({ color: 0xffcc99 });
+        const faceMat = new THREE.MeshLambertMaterial({ map: faceTexture });
         const shirtMat = new THREE.MeshLambertMaterial({ color: 0x0066cc });
         const pantsMat = new THREE.MeshLambertMaterial({ color: 0x222222 });
+        const baconHairMat = new THREE.MeshLambertMaterial({ color: 0x5a2d0c }); // Dark brownish bacon hair tint
 
-        const head = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 0.8), skinMat);
-        head.position.y = 2.4;
-        playerGroup.add(head);
+        // Cylinder Head (Roblox Style)
+        const headGroup = new THREE.Group();
+        headGroup.position.y = 2.4;
 
+        // Cylinder head materials: side 0 gets face, others get skin
+        const headMaterials = [
+            skinMat, // side
+            skinMat, // top
+            skinMat, // bottom
+        ];
+        
+        const headMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 0.8, 24), skinMat);
+        headGroup.add(headMesh);
+
+        // Face Plane Overlay
+        const facePlane = new THREE.Mesh(new THREE.PlaneGeometry(0.7, 0.7), faceMat);
+        facePlane.position.set(0, 0, 0.46);
+        headGroup.add(facePlane);
+
+        // Bacon Hair Strands
+        const strand1 = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.15, 0.7), baconHairMat);
+        strand1.position.set(0, 0.42, 0);
+        headGroup.add(strand1);
+
+        const strand2 = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.12, 0.8), baconHairMat);
+        strand2.position.set(-0.25, 0.35, 0.1);
+        strand2.rotation.z = 0.2;
+        headGroup.add(strand2);
+
+        const strand3 = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.12, 0.8), baconHairMat);
+        strand3.position.set(0.25, 0.35, 0.1);
+        strand3.rotation.z = -0.2;
+        headGroup.add(strand3);
+
+        playerGroup.add(headGroup);
+
+        // Torso
         const torso = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.4, 0.6), shirtMat);
         torso.position.y = 1.3;
         playerGroup.add(torso);
 
+        // Limbs
         const createLimb = (geo, mat, pos) => {
             geo.translate(0, -0.5, 0);
             const mesh = new THREE.Mesh(geo, mat);
@@ -162,7 +228,7 @@
         const leftLeg = createLimb(new THREE.BoxGeometry(0.5, 1.2, 0.5), pantsMat, new THREE.Vector3(-0.35, 0.6, 0));
         const rightLeg = createLimb(new THREE.BoxGeometry(0.5, 1.2, 0.5), pantsMat, new THREE.Vector3(0.35, 0.6, 0));
 
-        // --- 5. CONTROLS & TOUCHPAD CAMERA MECHANICS ---
+        // --- 6. SMOOTH TURNING & CONTROLS ---
         const keys = { w: false, a: false, s: false, d: false, i: false, o: false };
         window.addEventListener('keydown', e => { 
             const key = e.key.toLowerCase();
@@ -178,10 +244,7 @@
         let camDistance = 8.0;
         let isDragging = false;
 
-        // Support both mouse clicks and touchpad click-drag
-        window.addEventListener('mousedown', e => { 
-            isDragging = true;
-        });
+        window.addEventListener('mousedown', () => isDragging = true);
         window.addEventListener('mouseup', () => isDragging = false);
         window.addEventListener('contextmenu', e => e.preventDefault());
 
@@ -198,10 +261,11 @@
             camDistance = Math.max(0, Math.min(25, camDistance));
         });
 
+        let currentRotation = 0;
         let walkTimer = 0;
         const speed = 0.12;
 
-        // --- 6. GAME LOOP ---
+        // --- 7. GAME LOOP ---
         const clock = new THREE.Clock();
 
         function animate() {
@@ -211,7 +275,6 @@
             grassMaterial.uniforms.time.value = elapsedTime;
             grassMaterial.uniforms.playerPos.value.copy(playerGroup.position);
 
-            // Zoom Key Controls
             if (keys.i) camDistance = Math.max(0, camDistance - 0.2);
             if (keys.o) camDistance = Math.min(25, camDistance + 0.2);
 
@@ -226,12 +289,19 @@
             const isMoving = inputX !== 0 || inputZ !== 0;
 
             if (isMoving) {
-                const moveAngle = Math.atan2(inputX, inputZ) + camYaw;
+                const targetAngle = Math.atan2(inputX, inputZ) + camYaw;
 
-                playerGroup.position.x += Math.sin(moveAngle) * speed;
-                playerGroup.position.z += Math.cos(moveAngle) * speed;
+                // Move position
+                playerGroup.position.x += Math.sin(targetAngle) * speed;
+                playerGroup.position.z += Math.cos(targetAngle) * speed;
 
-                playerGroup.rotation.y = moveAngle;
+                // Ultra-Smooth Rotation Interpolation (Prevents robotic snapping)
+                let diff = targetAngle - currentRotation;
+                while (diff < -Math.PI) diff += Math.PI * 2;
+                while (diff > Math.PI) diff -= Math.PI * 2;
+                currentRotation += diff * 0.12; // Smooth turn rate
+
+                playerGroup.rotation.y = currentRotation;
 
                 walkTimer += 0.18;
                 const swing = Math.sin(walkTimer) * 0.6;
@@ -246,7 +316,7 @@
                 rightLeg.rotation.x = THREE.MathUtils.lerp(rightLeg.rotation.x, 0, 0.1);
             }
 
-            head.visible = camDistance > 0.8;
+            headGroup.visible = camDistance > 0.8;
 
             const targetPos = playerGroup.position.clone().add(new THREE.Vector3(0, 2.4, 0));
 
