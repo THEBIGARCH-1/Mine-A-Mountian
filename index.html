@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Roblox Mining Simulator</title>
+    <title>Roblox Mining Simulator Ultimate</title>
     <style>
         body { 
             margin: 0; 
@@ -107,7 +107,7 @@
     <div id="instructions">
         WASD: Fast Move | SHIFT: Sprint | SPACE: Jump<br>
         LEFT / RIGHT-CLICK & Drag OR ARROWS: Rotate Camera<br>
-        <strong>Hold / Tap 'E'</strong> near a shaking rock to Mine!
+        <strong>Tap 'E'</strong> near a shaking rock to Swing Pickaxe & Mine!
     </div>
 
     <div id="ui-hud">
@@ -125,7 +125,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
     <script>
-        // --- GAME STATE & CONFIGS ---
         let gemCount = 0;
         let currentPickaxeIndex = 0;
 
@@ -137,31 +136,29 @@
             { name: "Cosmic Pickaxe", damage: 50, cost: 1500, color: 0x9400d3 }
         ];
 
-        // 5 Rock Rarities (Each has 5 specific rock types & colors)
         const rockTiers = [
             { 
                 name: "Common", hp: 3, color: 0x555555, ringColor: 0xffffff, gemValue: 1,
                 types: ["Cobblestone", "Basalt", "Pebble Rock", "Granite", "Sandstone"]
             },
             { 
-                name: "Uncommon", hp: 10, color: 0x2e8b57, ringColor: 0x00ff00, gemValue: 5,
+                name: "Uncommon", hp: 12, color: 0x2e8b57, ringColor: 0x00ff00, gemValue: 5,
                 types: ["Mossy Boulder", "Limestone", "Diorite", "Slate", "Serpentine"]
             },
             { 
-                name: "Rare", hp: 30, color: 0x1e90ff, ringColor: 0x00bfff, gemValue: 20,
+                name: "Rare", hp: 40, color: 0x1e90ff, ringColor: 0x00bfff, gemValue: 20,
                 types: ["Sapphire Rock", "Lapis Ore", "Azurite", "Cobalt Stone", "Sodalite"]
             },
             { 
-                name: "Epic", hp: 90, color: 0x9932cc, ringColor: 0xda70d6, gemValue: 80,
+                name: "Epic", hp: 120, color: 0x9932cc, ringColor: 0xda70d6, gemValue: 80,
                 types: ["Amethyst Cluster", "Ruby Rock", "Garnet Stone", "Topaz Node", "Morganite"]
             },
             { 
-                name: "Cosmic", hp: 250, color: 0xff4500, ringColor: 0xffd700, gemValue: 300,
+                name: "Cosmic", hp: 350, color: 0xff4500, ringColor: 0xffd700, gemValue: 300,
                 types: ["Obsidian Core", "Meteorite", "Nether Rock", "Void Crystal", "Cosmic Monolith"]
             }
         ];
 
-        // --- 1. SCENE SETUP ---
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x87ceeb);
         scene.fog = new THREE.FogExp2(0x87ceeb, 0.012);
@@ -172,7 +169,6 @@
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
         document.body.appendChild(renderer.domElement);
 
-        // --- 2. LIGHTS ---
         const ambientLight = new THREE.AmbientLight(0xffffff, 0.75);
         scene.add(ambientLight);
 
@@ -180,69 +176,52 @@
         dirLight.position.set(30, 50, 20);
         scene.add(dirLight);
 
-        // --- 3. BASE TERRAIN ---
         const groundSize = 140;
         const groundGeometry = new THREE.PlaneGeometry(groundSize, groundSize);
         groundGeometry.rotateX(-Math.PI / 2);
-
         const groundMaterial = new THREE.MeshLambertMaterial({ color: 0x1e4112 });
         const ground = new THREE.Mesh(groundGeometry, groundMaterial);
         scene.add(ground);
 
-        // --- 4. OPTIMIZED POINTY GRASS FIELD ---
+        // Grass field setup
         const grassGeometry = new THREE.ConeGeometry(0.08, 0.7, 3);
         grassGeometry.translate(0, 0.35, 0); 
-
         const grassMaterial = new THREE.ShaderMaterial({
             vertexShader: `
                 attribute float phase;
                 uniform float time;
                 uniform vec3 playerPos;
                 varying float vHeight;
-
                 void main() {
                     vHeight = position.y / 0.7;
                     vec3 worldPos = (instanceMatrix * vec4(position, 1.0)).xyz;
                     vec3 pos = position;
-
                     float wave = sin(time * 2.5 + phase) * 0.07 * pow(vHeight, 2.0);
                     pos.x += wave;
-
                     float dist = distance(worldPos.xz, playerPos.xz);
-                    float pushRadius = 1.4;
-
-                    if (dist < pushRadius) {
-                        float pushFactor = (1.0 - (dist / pushRadius)) * pow(vHeight, 1.2);
+                    if (dist < 1.4) {
+                        float pushFactor = (1.0 - (dist / 1.4)) * pow(vHeight, 1.2);
                         vec2 pushDir = normalize(worldPos.xz - playerPos.xz + vec2(0.001));
-                        
                         pos.x += pushDir.x * pushFactor * 0.7;
                         pos.z += pushDir.y * pushFactor * 0.7;
                         pos.y -= pushFactor * 0.35;
                     }
-
-                    vec4 mvPosition = modelViewMatrix * instanceMatrix * vec4(pos, 1.0);
-                    gl_Position = projectionMatrix * mvPosition;
+                    gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(pos, 1.0);
                 }
             `,
             fragmentShader: `
                 varying float vHeight;
                 void main() {
-                    vec3 baseColor = vec3(0.08, 0.35, 0.05);
-                    vec3 tipColor = vec3(0.48, 0.82, 0.16);
-                    gl_FragColor = vec4(mix(baseColor, tipColor, vHeight), 1.0);
+                    gl_FragColor = vec4(mix(vec3(0.08, 0.35, 0.05), vec3(0.48, 0.82, 0.16), vHeight), 1.0);
                 }
             `,
-            uniforms: { 
-                time: { value: 0 },
-                playerPos: { value: new THREE.Vector3() }
-            }
+            uniforms: { time: { value: 0 }, playerPos: { value: new THREE.Vector3() } }
         });
 
         const grassCount = 18000;
         const grassField = new THREE.InstancedMesh(grassGeometry, grassMaterial, grassCount);
         const dummy = new THREE.Object3D();
         const phases = new Float32Array(grassCount);
-
         for (let i = 0; i < grassCount; i++) {
             dummy.position.set((Math.random() - 0.5) * 130, 0, (Math.random() - 0.5) * 130);
             dummy.rotation.y = Math.random() * Math.PI * 2;
@@ -255,11 +234,10 @@
         grassGeometry.setAttribute('phase', new THREE.InstancedBufferAttribute(phases, 1));
         scene.add(grassField);
 
-        // --- 5. ROCKS WITH RARITIES & HEALTH ---
+        // Rocks creation
         const detailedRockGeo = new THREE.IcosahedronGeometry(1, 1);
         const rockCount = 55;
         const rocksList = [];
-
         const ringGeo = new THREE.RingGeometry(1.0, 1.25, 32);
         ringGeo.rotateX(-Math.PI / 2);
 
@@ -268,76 +246,46 @@
             let rz = (Math.random() - 0.5) * 120;
             if (Math.hypot(rx, rz) < 6) { rx += 10; rz += 10; }
 
-            // Determine Rock Tier based on weighted rarity distribution
             let randTierRoll = Math.random();
-            let tierIndex = 0;
-            if (randTierRoll > 0.60) tierIndex = 1; // Uncommon (40%)
-            if (randTierRoll > 0.85) tierIndex = 2; // Rare (15%)
-            if (randTierRoll > 0.96) tierIndex = 3; // Epic (4%)
-            if (randTierRoll > 0.99) tierIndex = 4; // Cosmic (1%)
-
+            let tierIndex = randTierRoll > 0.60 ? (randTierRoll > 0.85 ? (randTierRoll > 0.96 ? (randTierRoll > 0.99 ? 4 : 3) : 2) : 1) : 0;
             const tier = rockTiers[tierIndex];
             const typeName = tier.types[Math.floor(Math.random() * tier.types.length)];
 
-            const baseScaleX = 0.8 + Math.random() * 0.8;
-            const baseScaleY = 0.7 + Math.random() * 0.7;
-            const baseScaleZ = 0.8 + Math.random() * 0.8;
+            const sx = 0.8 + Math.random() * 0.8;
+            const sy = 0.7 + Math.random() * 0.7;
+            const sz = 0.8 + Math.random() * 0.8;
 
-            const rockMat = new THREE.MeshStandardMaterial({ 
-                color: tier.color, 
-                roughness: 0.8, 
-                metalness: 0.2, 
-                flatShading: true 
-            });
-
+            const rockMat = new THREE.MeshStandardMaterial({ color: tier.color, roughness: 0.8, metalness: 0.2, flatShading: true });
             const rockMesh = new THREE.Mesh(detailedRockGeo, rockMat);
-            rockMesh.position.set(rx, baseScaleY * 0.5, rz);
-            const baseRotX = Math.random() * 0.3;
-            const baseRotY = Math.random() * Math.PI;
-            const baseRotZ = Math.random() * 0.3;
-            rockMesh.rotation.set(baseRotX, baseRotY, baseRotZ);
-            rockMesh.scale.set(baseScaleX, baseScaleY, baseScaleZ);
+            rockMesh.position.set(rx, sy * 0.5, rz);
+            const bRotZ = Math.random() * 0.3;
+            rockMesh.rotation.set(Math.random() * 0.3, Math.random() * Math.PI, bRotZ);
+            rockMesh.scale.set(sx, sy, sz);
             scene.add(rockMesh);
 
-            const ringMat = new THREE.MeshBasicMaterial({ color: tier.ringColor, side: THREE.DoubleSide });
-            const ringMesh = new THREE.Mesh(ringGeo, ringMat);
+            const ringMesh = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: tier.ringColor, side: THREE.DoubleSide }));
             ringMesh.position.set(rx, 0.05, rz);
-            const ringRadius = Math.max(baseScaleX, baseScaleZ) * 1.35;
+            const ringRadius = Math.max(sx, sz) * 1.35;
             ringMesh.scale.set(ringRadius, ringRadius, ringRadius);
             ringMesh.visible = false;
             scene.add(ringMesh);
 
-            const boundingRadius = Math.max(baseScaleX, baseScaleZ) * 0.85;
             rocksList.push({
-                mesh: rockMesh,
-                ring: ringMesh,
-                tier: tier,
-                typeName: typeName,
-                maxHp: tier.hp,
-                hp: tier.hp,
-                x: rx, z: rz,
-                baseY: baseScaleY * 0.5,
-                baseRotZ: baseRotZ,
-                baseScale: new THREE.Vector3(baseScaleX, baseScaleY, baseScaleZ),
-                radius: boundingRadius,
-                state: 'intact',
-                gem: null,
-                shards: [],
-                riseProgress: 0
+                mesh: rockMesh, ring: ringMesh, tier: tier, typeName: typeName,
+                maxHp: tier.hp, hp: tier.hp, x: rx, z: rz, baseY: sy * 0.5,
+                baseRotZ: bRotZ, baseScale: new THREE.Vector3(sx, sy, sz),
+                radius: Math.max(sx, sz) * 0.85, state: 'intact', gem: null, shards: [], riseProgress: 0
             });
         }
 
-        // --- 6. ROBLOX CHARACTER & INVENTORY BACKPACK ---
+        // Character setup
         const canvas = document.createElement('canvas');
         canvas.width = 128; canvas.height = 128;
         const ctx = canvas.getContext('2d');
         ctx.fillStyle = '#ffcc99'; ctx.fillRect(0, 0, 128, 128);
-        ctx.fillStyle = '#111111';
-        ctx.beginPath(); ctx.arc(40, 55, 7, 0, Math.PI * 2); ctx.arc(88, 55, 7, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = '#ffffff';
-        ctx.beginPath(); ctx.arc(37, 52, 2, 0, Math.PI * 2); ctx.arc(85, 52, 2, 0, Math.PI * 2); ctx.fill();
-        ctx.lineWidth = 4; ctx.strokeStyle = '#111111';
-        ctx.beginPath(); ctx.arc(64, 70, 22, 0.1 * Math.PI, 0.9 * Math.PI, false); ctx.stroke();
+        ctx.fillStyle = '#111'; ctx.beginPath(); ctx.arc(40, 55, 7, 0, Math.PI * 2); ctx.arc(88, 55, 7, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(37, 52, 2, 0, Math.PI * 2); ctx.arc(85, 52, 2, 0, Math.PI * 2); ctx.fill();
+        ctx.lineWidth = 4; ctx.strokeStyle = '#111'; ctx.beginPath(); ctx.arc(64, 70, 22, 0.1 * Math.PI, 0.9 * Math.PI, false); ctx.stroke();
         const faceTexture = new THREE.CanvasTexture(canvas);
 
         const playerGroup = new THREE.Group();
@@ -345,121 +293,78 @@
 
         const skinMat = new THREE.MeshLambertMaterial({ color: 0xffcc99 });
         const faceMat = new THREE.MeshLambertMaterial({ map: faceTexture });
-        const shirtMat = new THREE.MeshLambertMaterial({ color: 0x0066cc });
-        const pantsMat = new THREE.MeshLambertMaterial({ color: 0x222222 });
-        const baconHairMat = new THREE.MeshLambertMaterial({ color: 0x5a2d0c });
-        const backpackMat = new THREE.MeshLambertMaterial({ color: 0x8b4513 });
-
         const headGroup = new THREE.Group();
         headGroup.position.y = 2.4;
-        const headMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 0.8, 16), skinMat);
-        headGroup.add(headMesh);
+        headGroup.add(new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 0.8, 16), skinMat));
         const facePlane = new THREE.Mesh(new THREE.PlaneGeometry(0.7, 0.7), faceMat);
         facePlane.position.set(0, 0, 0.46);
         headGroup.add(facePlane);
 
-        const strand1 = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.15, 0.7), baconHairMat);
-        strand1.position.set(0, 0.42, 0); headGroup.add(strand1);
-        const strand2 = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.12, 0.8), baconHairMat);
-        strand2.position.set(-0.25, 0.35, 0.1); strand2.rotation.z = 0.2; headGroup.add(strand2);
-        const strand3 = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.12, 0.8), baconHairMat);
-        strand3.position.set(0.25, 0.35, 0.1); strand3.rotation.z = -0.2; headGroup.add(strand3);
+        const hairMat = new THREE.MeshLambertMaterial({ color: 0x5a2d0c });
+        headGroup.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.15, 0.7), hairMat), { position: new THREE.Vector3(0, 0.42, 0) }));
         playerGroup.add(headGroup);
 
-        const torso = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.4, 0.6), shirtMat);
-        torso.position.y = 1.3;
-        playerGroup.add(torso);
-
-        const backpack = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.9, 0.4), backpackMat);
-        backpack.position.set(0, 1.3, -0.45);
-        playerGroup.add(backpack);
+        playerGroup.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.4, 0.6), new THREE.MeshLambertMaterial({ color: 0x0066cc })), { position: new THREE.Vector3(0, 1.3, 0) }));
+        playerGroup.add(Object.assign(new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.9, 0.4), new THREE.MeshLambertMaterial({ color: 0x8b4513 })), { position: new THREE.Vector3(0, 1.3, -0.45) }));
 
         const createLimb = (geo, mat, pos) => {
             geo.translate(0, -0.5, 0);
-            const mesh = new THREE.Mesh(geo, mat);
-            mesh.position.copy(pos);
-            playerGroup.add(mesh);
-            return mesh;
+            const m = new THREE.Mesh(geo, mat);
+            m.position.copy(pos);
+            playerGroup.add(m);
+            return m;
         };
 
         const leftArm = createLimb(new THREE.BoxGeometry(0.4, 1.2, 0.4), skinMat, new THREE.Vector3(-0.8, 1.9, 0));
         const rightArm = createLimb(new THREE.BoxGeometry(0.4, 1.2, 0.4), skinMat, new THREE.Vector3(0.8, 1.9, 0));
-        const leftLeg = createLimb(new THREE.BoxGeometry(0.5, 1.2, 0.5), pantsMat, new THREE.Vector3(-0.35, 0.6, 0));
-        const rightLeg = createLimb(new THREE.BoxGeometry(0.5, 1.2, 0.5), pantsMat, new THREE.Vector3(0.35, 0.6, 0));
-
-        // --- 7. CONTROLS & UI MANAGEMENT ---
-        const keys = { 
-            w: false, a: false, s: false, d: false, 
-            ArrowLeft: false, ArrowRight: false, ArrowUp: false, ArrowDown: false,
-            space: false, shift: false, e: false
-        };
         
-        window.addEventListener('keydown', e => { 
+        // Pickaxe in right hand
+        const pickaxeGroup = new THREE.Group();
+        const pickHead = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.3, 0.3), new THREE.MeshStandardMaterial({ color: 0x888888, metalness: 0.8 }));
+        const pickHandle = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 1.2), new THREE.MeshLambertMaterial({ color: 0x5a2d0c }));
+        pickHandle.position.y = -0.5;
+        pickaxeGroup.add(pickHead, pickHandle);
+        pickaxeGroup.position.set(0, -1.0, 0);
+        pickaxeGroup.rotation.x = Math.PI / 2;
+        rightArm.add(pickaxeGroup);
+
+        const leftLeg = createLimb(new THREE.BoxGeometry(0.5, 1.2, 0.5), new THREE.MeshLambertMaterial({ color: 0x222 }), new THREE.Vector3(-0.35, 0.6, 0));
+        const rightLeg = createLimb(new THREE.BoxGeometry(0.5, 1.2, 0.5), new THREE.MeshLambertMaterial({ color: 0x222 }), new THREE.Vector3(0.35, 0.6, 0));
+
+        let keys = { w: false, a: false, s: false, d: false, ArrowLeft: false, ArrowRight: false, ArrowUp: false, ArrowDown: false, space: false, shift: false, e: false };
+        window.addEventListener('keydown', e => {
             if (e.code === "Space") keys.space = true;
             if (e.key === "Shift" || e.code === "ShiftLeft") keys.shift = true;
             if (e.key.toLowerCase() === "e") keys.e = true;
+            const k = e.key.toLowerCase(); if (keys.hasOwnProperty(k)) keys[k] = true;
             if (keys.hasOwnProperty(e.key)) keys[e.key] = true;
-            const key = e.key.toLowerCase();
-            if (keys.hasOwnProperty(key)) keys[key] = true; 
         });
-
-        window.addEventListener('keyup', e => { 
+        window.addEventListener('keyup', e => {
             if (e.code === "Space") keys.space = false;
             if (e.key === "Shift" || e.code === "ShiftLeft") keys.shift = false;
             if (e.key.toLowerCase() === "e") keys.e = false;
-            const key = e.key.toLowerCase();
-            if (keys.hasOwnProperty(key)) keys[key] = false; 
+            const k = e.key.toLowerCase(); if (keys.hasOwnProperty(k)) keys[k] = false;
         });
 
-        let playerVelocityY = 0;
-        const gravity = -0.022;
-        const jumpStrength = 0.45;
-        let isGrounded = true;
-
-        let camYaw = 0;
-        let camPitch = 0.3;
-        let camDistance = 8.0;
-        let isMouseDown = false;
-        let eKeyProcessed = false;
+        let playerVelocityY = 0, isGrounded = true, camYaw = 0, camPitch = 0.3, camDistance = 8.0, isMouseDown = false, eKeyProcessed = false, miningAnimationTimer = 0;
         const flyingGems = [];
 
-        window.addEventListener('mousedown', (e) => {
-            if (e.button === 0 || e.button === 2) isMouseDown = true;
-        });
+        window.addEventListener('mousedown', () => isMouseDown = true);
         window.addEventListener('mouseup', () => isMouseDown = false);
-        window.addEventListener('contextmenu', e => e.preventDefault());
+        window.addEventListener('mousemove', e => { if (isMouseDown) { camYaw -= e.movementX * 0.005; camPitch = Math.max(-0.2, Math.min(Math.PI / 2 - 0.1, camPitch + e.movementY * 0.005)); } });
+        window.addEventListener('wheel', e => camDistance = Math.max(1, Math.min(35, camDistance + e.deltaY * 0.005)));
 
-        window.addEventListener('mousemove', e => {
-            if (isMouseDown) {
-                camYaw -= e.movementX * 0.005;
-                camPitch += e.movementY * 0.005;
-                camPitch = Math.max(-0.2, Math.min(Math.PI / 2 - 0.1, camPitch));
-            }
-        });
-
-        window.addEventListener('wheel', e => {
-            camDistance += e.deltaY * 0.005;
-            camDistance = Math.max(1, Math.min(35, camDistance));
-        });
-
-        // Setup Shop UI Generation
         function updateShopUI() {
             const listEl = document.getElementById('shop-list');
             listEl.innerHTML = '';
             pickaxes.forEach((p, index) => {
                 const isOwned = index <= currentPickaxeIndex;
                 const isNext = index === currentPickaxeIndex + 1;
-                const canAfford = gemCount >= p.cost;
-
                 const card = document.createElement('div');
                 card.className = `pickaxe-card ${isOwned ? 'owned' : ''}`;
-                card.innerHTML = `
-                    <div><strong>${p.name}</strong></div>
-                    <div style="font-size:12px; color:#aaa;">Damage: +${p.damage}</div>
-                    ${!isOwned ? `<div style="font-size:12px; color:#ffd700;">Cost: ${p.cost} Gems</div>` : ''}
-                    ${isOwned ? '<div style="color:#00ffaa; font-size:12px; font-weight:bold;">UNLOCKED</div>' : 
-                      `<button ${!isNext || !canAfford ? 'disabled' : ''} onclick="buyPickaxe(${index})">Purchase</button>`}
-                `;
+                card.innerHTML = `<div><strong>${p.name}</strong></div><div style="font-size:12px; color:#aaa;">Damage: +${p.damage}</div>` +
+                    (!isOwned ? `<div style="font-size:12px; color:#ffd700;">Cost: ${p.cost} Gems</div>` : '') +
+                    (isOwned ? '<div style="color:#00ffaa; font-size:12px; font-weight:bold;">UNLOCKED</div>' : `<button ${!isNext || gemCount < p.cost ? 'disabled' : ''} onclick="buyPickaxe(${index})">Purchase</button>`);
                 listEl.appendChild(card);
             });
             document.getElementById('gem-count').innerText = gemCount;
@@ -468,12 +373,11 @@
         }
 
         window.buyPickaxe = function(index) {
-            const p = pickaxes[index];
-            if (gemCount >= p.cost && index === currentPickaxeIndex + 1) {
-                gemCount -= p.cost;
+            if (gemCount >= pickaxes[index].cost && index === currentPickaxeIndex + 1) {
+                gemCount -= pickaxes[index].cost;
                 currentPickaxeIndex = index;
                 updateShopUI();
-                showNotification(`Purchased ${p.name}!`);
+                showNotification(`Purchased ${pickaxes[index].name}!`);
             }
         };
 
@@ -484,233 +388,141 @@
             setTimeout(() => { notif.style.opacity = '0'; }, 2000);
         }
 
-        let currentRotation = 0;
-        let walkTimer = 0;
+        let currentRotation = 0, walkTimer = 0;
 
-        function resolveRockCollision(newX, newZ) {
-            const playerRadius = 0.6;
-            for (const rock of rocksList) {
-                if (rock.state === 'shattered' || rock.state === 'collected') continue;
-                const dx = newX - rock.x;
-                const dz = newZ - rock.z;
-                const dist = Math.hypot(dx, dz);
-                const minDist = rock.radius + playerRadius;
-
+        function resolveRockCollision(nx, nz) {
+            for (const r of rocksList) {
+                if (r.state === 'shattered' || r.state === 'collected') continue;
+                const dist = Math.hypot(nx - r.x, nz - r.z);
+                const minDist = r.radius + 0.6;
                 if (dist < minDist) {
                     const overlap = minDist - dist;
-                    const nx = dx / (dist || 1);
-                    const nz = dz / (dist || 1);
-                    newX += nx * overlap;
-                    newZ += nz * overlap;
+                    nx += (nx - r.x) / (dist || 1) * overlap;
+                    nz += (nz - r.z) / (dist || 1) * overlap;
                 }
             }
-            return { x: newX, z: newZ };
+            return { x: nx, z: nz };
         }
 
-        // --- 8. GAME LOOP ---
         const clock = new THREE.Clock();
 
         function animate() {
             requestAnimationFrame(animate);
-
             const elapsedTime = clock.getElapsedTime();
             grassMaterial.uniforms.time.value = elapsedTime;
             grassMaterial.uniforms.playerPos.value.copy(playerGroup.position);
 
-            const camRotateSpeed = 0.04;
-            if (keys.ArrowLeft) camYaw += camRotateSpeed;
-            if (keys.ArrowRight) camYaw -= camRotateSpeed;
-            if (keys.ArrowUp) camPitch = Math.min(Math.PI / 2 - 0.1, camPitch + camRotateSpeed);
-            if (keys.ArrowDown) camPitch = Math.max(-0.2, camPitch - camRotateSpeed);
+            if (keys.ArrowLeft) camYaw += 0.04;
+            if (keys.ArrowRight) camYaw -= 0.04;
 
-            if (keys.space && isGrounded) {
-                playerVelocityY = jumpStrength;
-                isGrounded = false;
-            }
-
+            if (keys.space && isGrounded) { playerVelocityY = 0.45; isGrounded = false; }
             playerGroup.position.y += playerVelocityY;
-            if (!isGrounded) {
-                playerVelocityY += gravity;
-            }
+            if (!isGrounded) playerVelocityY -= 0.022;
+            if (playerGroup.position.y <= 0) { playerGroup.position.y = 0; playerVelocityY = 0; isGrounded = true; }
 
-            if (playerGroup.position.y <= 0) {
-                playerGroup.position.y = 0;
-                playerVelocityY = 0;
-                isGrounded = true;
-            }
-
-            const currentSpeed = keys.shift ? 0.38 : 0.24;
-            const animFrequency = keys.shift ? 0.40 : 0.28;
-
-            let inputX = 0;
-            let inputZ = 0;
-
-            if (keys.w) inputZ -= 1;
-            if (keys.s) inputZ += 1;
-            if (keys.a) inputX -= 1;
-            if (keys.d) inputX += 1;
-
-            const isMoving = inputX !== 0 || inputZ !== 0;
-
-            if (isMoving) {
+            let inputX = (keys.d ? 1 : 0) - (keys.a ? 1 : 0);
+            let inputZ = (keys.s ? 1 : 0) - (keys.w ? 1 : 0);
+            if (inputX !== 0 || inputZ !== 0) {
                 const targetAngle = Math.atan2(inputX, inputZ) + camYaw;
-
-                let nextX = playerGroup.position.x + Math.sin(targetAngle) * currentSpeed;
-                let nextZ = playerGroup.position.z + Math.cos(targetAngle) * currentSpeed;
-
-                const resolvedPos = resolveRockCollision(nextX, nextZ);
-                playerGroup.position.x = resolvedPos.x;
-                playerGroup.position.z = resolvedPos.z;
-
+                const spd = keys.shift ? 0.38 : 0.24;
+                const res = resolveRockCollision(playerGroup.position.x + Math.sin(targetAngle) * spd, playerGroup.position.z + Math.cos(targetAngle) * spd);
+                playerGroup.position.x = res.x; playerGroup.position.z = res.z;
+                
                 let diff = targetAngle - currentRotation;
                 while (diff < -Math.PI) diff += Math.PI * 2;
                 while (diff > Math.PI) diff -= Math.PI * 2;
                 currentRotation += diff * 0.2;
-
                 playerGroup.rotation.y = currentRotation;
 
-                walkTimer += animFrequency;
-                const swing = Math.sin(walkTimer) * 0.7;
-                leftArm.rotation.x = swing;
-                rightArm.rotation.x = -swing;
-                leftLeg.rotation.x = -swing;
-                rightLeg.rotation.x = swing;
+                walkTimer += keys.shift ? 0.40 : 0.28;
+                leftArm.rotation.x = Math.sin(walkTimer) * 0.7;
+                if (miningAnimationTimer <= 0) rightArm.rotation.x = -Math.sin(walkTimer) * 0.7;
+                leftLeg.rotation.x = -Math.sin(walkTimer) * 0.7;
+                rightLeg.rotation.x = Math.sin(walkTimer) * 0.7;
             } else {
                 leftArm.rotation.x = THREE.MathUtils.lerp(leftArm.rotation.x, 0, 0.2);
-                rightArm.rotation.x = THREE.MathUtils.lerp(rightArm.rotation.x, 0, 0.2);
+                if (miningAnimationTimer <= 0) rightArm.rotation.x = THREE.MathUtils.lerp(rightArm.rotation.x, 0, 0.2);
                 leftLeg.rotation.x = THREE.MathUtils.lerp(leftLeg.rotation.x, 0, 0.2);
                 rightLeg.rotation.x = THREE.MathUtils.lerp(rightLeg.rotation.x, 0, 0.2);
             }
 
-            // FIND CLOSEST ROCK
-            const playerPos = playerGroup.position;
-            const interactionDistance = 4.0;
-            
-            let closestRock = null;
-            let minDistance = interactionDistance;
-
-            for (const rock of rocksList) {
-                if (rock.state === 'collected') continue;
-                const dist = Math.hypot(playerPos.x - rock.x, playerPos.z - rock.z);
-                if (dist < minDistance) {
-                    minDistance = dist;
-                    closestRock = rock;
-                }
+            if (miningAnimationTimer > 0) {
+                miningAnimationTimer -= 0.05;
+                rightArm.rotation.x = -1.5 + Math.sin(miningAnimationTimer * 10) * 0.5;
             }
 
-            // HANDLE ROCK STATES, DAMAGE, AND MINING
-            for (const rock of rocksList) {
-                if (rock === closestRock) {
-                    if (rock.state === 'intact') {
-                        rock.ring.visible = true;
-                        const targetScale = rock.baseScale.clone().multiplyScalar(1.18);
-                        rock.mesh.scale.lerp(targetScale, 0.1);
-                        const shakeOffset = Math.sin(elapsedTime * 35) * 0.05;
-                        rock.mesh.rotation.z = rock.baseRotZ + shakeOffset;
+            let closestRock = null, minDist = 4.0;
+            for (const r of rocksList) {
+                if (r.state === 'collected') continue;
+                const d = Math.hypot(playerGroup.position.x - r.x, playerGroup.position.z - r.z);
+                if (d < minDist) { minDist = d; closestRock = r; }
+            }
 
-                        // PRESS 'E' TO MINE DAMAGE
+            for (const r of rocksList) {
+                if (r === closestRock) {
+                    if (r.state === 'intact') {
+                        r.ring.visible = true;
+                        r.mesh.scale.lerp(r.baseScale.clone().multiplyScalar(1.18), 0.1);
+                        r.mesh.rotation.z = r.baseRotZ + Math.sin(elapsedTime * 35) * 0.05;
+
                         if (keys.e && !eKeyProcessed) {
                             eKeyProcessed = true;
-                            const damage = pickaxes[currentPickaxeIndex].damage;
-                            rock.hp -= damage;
-                            showNotification(`Hit ${rock.typeName}! (-${damage} HP) [${Math.max(0, rock.hp)}/${rock.maxHp}]`);
-
-                            if (rock.hp <= 0) {
-                                rock.state = 'rising';
-                                rock.ring.visible = false;
-                            }
+                            miningAnimationTimer = 1.0;
+                            const dmg = pickaxes[currentPickaxeIndex].damage;
+                            r.hp -= dmg;
+                            showNotification(`Hit ${r.typeName}! (-${dmg} HP) [${Math.max(0, r.hp)}/${r.maxHp}]`);
+                            if (r.hp <= 0) { r.state = 'rising'; r.ring.visible = false; }
                         }
-                    } else if (rock.state === 'rising') {
-                        rock.riseProgress += 0.05;
-                        rock.mesh.position.y = rock.baseY + Math.min(rock.riseProgress * 1.5, 2.0);
-                        
-                        if (rock.riseProgress >= 1.0) {
-                            rock.state = 'shattered';
-                            rock.mesh.visible = false;
-
-                            const shardGeo = new THREE.TetrahedronGeometry(0.3, 0);
+                    } else if (r.state === 'rising') {
+                        r.riseProgress += 0.05;
+                        r.mesh.position.y = r.baseY + Math.min(r.riseProgress * 1.5, 2.0);
+                        if (r.riseProgress >= 1.0) {
+                            r.state = 'shattered';
+                            r.mesh.visible = false;
                             for (let s = 0; s < 6; s++) {
-                                const shard = new THREE.Mesh(shardGeo, rock.mesh.material);
-                                shard.position.copy(rock.mesh.position);
-                                shard.userData = {
-                                    vel: new THREE.Vector3((Math.random() - 0.5) * 0.25, Math.random() * 0.2 + 0.1, (Math.random() - 0.5) * 0.25),
-                                    rotSpeed: new THREE.Vector3(Math.random(), Math.random(), Math.random())
-                                };
-                                scene.add(shard);
-                                rock.shards.push(shard);
+                                const shard = new THREE.Mesh(new THREE.TetrahedronGeometry(0.3, 0), r.mesh.material);
+                                shard.position.copy(r.mesh.position);
+                                shard.userData = { vel: new THREE.Vector3((Math.random()-0.5)*0.25, Math.random()*0.2+0.1, (Math.random()-0.5)*0.25), rot: new THREE.Vector3(Math.random(), Math.random(), Math.random()) };
+                                scene.add(shard); r.shards.push(shard);
                             }
-
-                            const gemGeo = new THREE.OctahedronGeometry(0.4, 0);
-                            const gemMat = new THREE.MeshStandardMaterial({ 
-                                color: rock.tier.ringColor, 
-                                emissive: rock.tier.ringColor, 
-                                roughness: 0.2, 
-                                metalness: 0.8 
-                            });
-                            const gemMesh = new THREE.Mesh(gemGeo, gemMat);
-                            gemMesh.position.set(rock.x, rock.baseY + 1.2, rock.z);
-                            scene.add(gemMesh);
-                            rock.gem = gemMesh;
+                            const gemMesh = new THREE.Mesh(new THREE.OctahedronGeometry(0.4, 0), new THREE.MeshStandardMaterial({ color: r.tier.ringColor, emissive: r.tier.ringColor, roughness: 0.2, metalness: 0.8 }));
+                            gemMesh.position.set(r.x, r.baseY + 1.2, r.z);
+                            scene.add(gemMesh); r.gem = gemMesh;
                         }
-                    } else if (rock.state === 'shattered') {
-                        if (rock.gem) {
-                            rock.gem.position.y = rock.baseY + 1.2 + Math.sin(elapsedTime * 4) * 0.2;
-                            rock.gem.rotation.y += 0.03;
-
-                            if (keys.e && !eKeyProcessed) {
-                                eKeyProcessed = true;
-                                rock.state = 'collected';
-                                const gemToFly = rock.gem;
-                                rock.gem = null;
-
-                                flyingGems.push({
-                                    mesh: gemToFly,
-                                    value: rock.tier.gemValue,
-                                    progress: 0
-                                });
-                                showNotification(`Collected ${rock.tier.name} Gem! (+${rock.tier.gemValue} Gems)`);
-                            }
+                    } else if (r.state === 'shattered' && r.gem) {
+                        r.gem.position.y = r.baseY + 1.2 + Math.sin(elapsedTime * 4) * 0.2;
+                        r.gem.rotation.y += 0.03;
+                        if (keys.e && !eKeyProcessed) {
+                            eKeyProcessed = true;
+                            r.state = 'collected';
+                            flyingGems.push({ mesh: r.gem, value: r.tier.gemValue, progress: 0 });
+                            r.gem = null;
+                            showNotification(`Collected ${r.tier.name} Gem! (+${r.tier.gemValue} Gems)`);
                         }
                     }
-                } else {
-                    if (rock.state === 'intact') {
-                        rock.ring.visible = false;
-                        rock.mesh.scale.lerp(rock.baseScale, 0.1);
-                        rock.mesh.rotation.z = THREE.MathUtils.lerp(rock.mesh.rotation.z, rock.baseRotZ, 0.1);
-                    }
+                } else if (r.state === 'intact') {
+                    r.ring.visible = false;
+                    r.mesh.scale.lerp(r.baseScale, 0.1);
+                    r.mesh.rotation.z = THREE.MathUtils.lerp(r.mesh.rotation.z, r.baseRotZ, 0.1);
                 }
 
-                if (rock.shards.length > 0) {
-                    for (const shard of rock.shards) {
-                        shard.position.add(shard.userData.vel);
-                        shard.userData.vel.y -= 0.02;
-                        shard.rotation.x += shard.userData.rotSpeed.x * 0.05;
-                        shard.rotation.y += shard.userData.rotSpeed.y * 0.05;
-
-                        if (shard.position.y <= 0.1) {
-                            shard.position.y = 0.1;
-                            shard.userData.vel.set(0, 0, 0);
-                        }
-                    }
-                }
+                r.shards.forEach(sh => {
+                    sh.position.add(sh.userData.vel);
+                    sh.userData.vel.y -= 0.02;
+                    if (sh.position.y <= 0.1) { sh.position.y = 0.1; sh.userData.vel.set(0, 0, 0); }
+                });
             }
 
-            if (!keys.e) {
-                eKeyProcessed = false;
-            }
+            if (!keys.e) eKeyProcessed = false;
 
-            // ANIMATE FLYING GEMS INTO BACKPACK
             for (let i = flyingGems.length - 1; i >= 0; i--) {
                 const fg = flyingGems[i];
                 fg.progress += 0.03;
-
-                const backpackWorldPos = new THREE.Vector3();
-                backpack.getWorldPosition(backpackWorldPos);
-
-                fg.mesh.position.lerp(backpackWorldPos, fg.progress);
+                const bPos = new THREE.Vector3();
+                backpack.getWorldPosition(bPos);
+                fg.mesh.position.lerp(bPos, fg.progress);
                 fg.mesh.scale.multiplyScalar(0.95);
-
-                if (fg.progress >= 1.0 || fg.mesh.position.distanceTo(backpackWorldPos) < 0.3) {
+                if (fg.progress >= 1.0 || fg.mesh.position.distanceTo(bPos) < 0.3) {
                     scene.remove(fg.mesh);
                     flyingGems.splice(i, 1);
                     gemCount += fg.value;
@@ -719,15 +531,13 @@
             }
 
             headGroup.visible = camDistance > 0.8;
-
             const targetPos = playerGroup.position.clone().add(new THREE.Vector3(0, 2.4, 0));
-            const camX = targetPos.x + camDistance * Math.sin(camYaw) * Math.cos(camPitch);
-            const camY = targetPos.y + camDistance * Math.sin(camPitch);
-            const camZ = targetPos.z + camDistance * Math.cos(camYaw) * Math.cos(camPitch);
-
-            camera.position.set(camX, camY, camZ);
+            camera.position.set(
+                targetPos.x + camDistance * Math.sin(camYaw) * Math.cos(camPitch),
+                targetPos.y + camDistance * Math.sin(camPitch),
+                targetPos.z + camDistance * Math.cos(camYaw) * Math.cos(camPitch)
+            );
             camera.lookAt(targetPos);
-
             renderer.render(scene, camera);
         }
 
