@@ -10,6 +10,7 @@
             overflow: hidden; 
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
             user-select: none; 
+            background: #222;
         }
         #instructions {
             position: absolute;
@@ -125,9 +126,9 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
     <script>
-        // --- GAME STATE & CONFIGS ---
-        let gemCount = 0;
-        let currentPickaxeIndex = 0;
+        // --- GAME STATE & CONFIGS (WITH LOCALSTORAGE LOAD) ---
+        let gemCount = parseInt(localStorage.getItem('mining_gems')) || 0;
+        let currentPickaxeIndex = parseInt(localStorage.getItem('mining_pickaxe')) || 0;
 
         const pickaxes = [
             { name: "Rusty Pickaxe", damage: 1, cost: 0, color: 0x8b5a2b },
@@ -160,7 +161,7 @@
             }
         ];
 
-        // --- 1. SCENE SETUP ---
+        // --- 1. SAFE SCENE SETUP ---
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x87ceeb);
         scene.fog = new THREE.FogExp2(0x87ceeb, 0.006);
@@ -179,7 +180,7 @@
         dirLight.position.set(50, 80, 40);
         scene.add(dirLight);
 
-        // --- 3. EXPANDED BASE TERRAIN ---
+        // --- 3. TERRAIN ---
         const groundSize = 300;
         const groundGeometry = new THREE.PlaneGeometry(groundSize, groundSize);
         groundGeometry.rotateX(-Math.PI / 2);
@@ -188,7 +189,7 @@
         const ground = new THREE.Mesh(groundGeometry, groundMaterial);
         scene.add(ground);
 
-        // --- 4. SHORT WHITE FENCE BOUNDARY ---
+        // --- 4. FENCE ---
         const fenceMaterial = new THREE.MeshLambertMaterial({ color: 0xffffff });
         const fenceGroup = new THREE.Group();
         const halfSize = groundSize / 2 - 2;
@@ -222,7 +223,7 @@
         }
         scene.add(fenceGroup);
 
-        // --- 5. STRUCTURES (CAVES) ---
+        // --- 5. CAVES ---
         const caveMaterial = new THREE.MeshStandardMaterial({ color: 0x444444, roughness: 0.9, flatShading: true });
         const caveGroup = new THREE.Group();
 
@@ -302,7 +303,7 @@
             }
         });
 
-        const grassCount = 30000;
+        const grassCount = 20000;
         const grassField = new THREE.InstancedMesh(grassGeometry, grassMaterial, grassCount);
         const dummy = new THREE.Object3D();
         const phases = new Float32Array(grassCount);
@@ -319,7 +320,7 @@
         grassGeometry.setAttribute('phase', new THREE.InstancedBufferAttribute(phases, 1));
         scene.add(grassField);
 
-        // --- 7. ROCK & STYLIZED CRYSTAL GEOMETRIES ---
+        // --- 7. ROCKS & CRYSTALS ---
         function createSolidRockGeometry() {
             const geom = new THREE.DodecahedronGeometry(1, 1);
             const pos = geom.attributes.position;
@@ -335,7 +336,6 @@
             return geom;
         }
 
-        // Varied crystal sizes and custom shapes per tier
         function createGemGeometry(tierIndex) {
             if (tierIndex === 0) return new THREE.OctahedronGeometry(0.3 + Math.random() * 0.3, 0); 
             if (tierIndex === 1) return new THREE.ConeGeometry(0.25 + Math.random() * 0.2, 0.7 + Math.random() * 0.4, 5);  
@@ -350,7 +350,7 @@
         ringGeo.rotateX(-Math.PI / 2);
 
         const activeExplosions = [];
-        const floatingGems = [];
+        const flyingGems = [];
 
         for (let i = 0; i < rockCount; i++) {
             let rx = (Math.random() - 0.5) * 270;
@@ -367,7 +367,6 @@
             const tier = rockTiers[tierIndex];
             const typeName = tier.types[Math.floor(Math.random() * tier.types.length)];
 
-            // Varied rock sizes
             const baseScaleX = 0.6 + Math.random() * 1.0;
             const baseScaleY = 0.5 + Math.random() * 1.0;
             const baseScaleZ = 0.6 + Math.random() * 1.0;
@@ -379,7 +378,7 @@
                 metalness: 0.25, 
                 flatShading: true,
                 emissive: tier.ringColor,
-                emissiveIntensity: 0.12 // Subtle magical rock aura glow
+                emissiveIntensity: 0.12
             });
 
             const rockMesh = new THREE.Mesh(rockGeo, rockMat);
@@ -422,7 +421,7 @@
             });
         }
 
-        // --- 8. ROBLOX CHARACTER & BACKPACK ---
+        // --- 8. CHARACTER ---
         const canvas = document.createElement('canvas');
         canvas.width = 128; canvas.height = 128;
         const ctx = canvas.getContext('2d');
@@ -482,7 +481,7 @@
         const leftLeg = createLimb(new THREE.BoxGeometry(0.5, 1.2, 0.5), pantsMat, new THREE.Vector3(-0.35, 0.6, 0));
         const rightLeg = createLimb(new THREE.BoxGeometry(0.5, 1.2, 0.5), pantsMat, new THREE.Vector3(0.35, 0.6, 0));
 
-        // --- 9. CONTROLS & UI MANAGEMENT ---
+        // --- 9. CONTROLS & SHOP ---
         const keys = { 
             w: false, a: false, s: false, d: false, 
             ArrowLeft: false, ArrowRight: false, ArrowUp: false, ArrowDown: false,
@@ -535,6 +534,11 @@
             camDistance = Math.max(1, Math.min(35, camDistance));
         });
 
+        function saveGame() {
+            localStorage.setItem('mining_gems', gemCount);
+            localStorage.setItem('mining_pickaxe', currentPickaxeIndex);
+        }
+
         function updateShopUI() {
             const listEl = document.getElementById('shop-list');
             listEl.innerHTML = '';
@@ -564,6 +568,7 @@
             if (gemCount >= p.cost && index === currentPickaxeIndex + 1) {
                 gemCount -= p.cost;
                 currentPickaxeIndex = index;
+                saveGame();
                 updateShopUI();
                 showNotification(`Purchased ${p.name}!`);
             }
@@ -654,7 +659,7 @@
             });
         }
 
-        // --- 10. GAME LOOP ---
+        // --- 10. LOOP ---
         const clock = new THREE.Clock();
 
         function animate() {
@@ -773,7 +778,6 @@
                             rock.state = 'shattered';
                             rock.mesh.visible = false;
 
-                            // Shattered outer stone shards flying outward
                             const shardGeo = new THREE.TetrahedronGeometry(0.3, 0);
                             for (let s = 0; s < 6; s++) {
                                 const shard = new THREE.Mesh(shardGeo, rock.mesh.material);
@@ -786,7 +790,6 @@
                                 rock.shards.push(shard);
                             }
 
-                            // Glowing floating gem with dynamic light source & orbiting magic sparkles
                             const gemGeo = createGemGeometry(rock.tierIndex);
                             const gemMat = new THREE.MeshStandardMaterial({ 
                                 color: rock.tier.ringColor, 
@@ -801,13 +804,11 @@
                             scene.add(gemMesh);
                             rock.gem = gemMesh;
 
-                            // Magical point light attached to the floating gem
                             const gemLight = new THREE.PointLight(rock.tier.ringColor, 2.5, 4.0);
                             gemLight.position.set(rock.x, rock.baseY + 1.2, rock.z);
                             scene.add(gemLight);
                             rock.gemLight = gemLight;
 
-                            // Orbiting magic sparkles around the gem
                             const sparkleGeo = new THREE.SphereGeometry(0.06, 4, 4);
                             const sparkleMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
                             for(let sp = 0; sp < 4; sp++) {
@@ -830,7 +831,6 @@
                                 rock.gemLight.position.y = floatY;
                             }
 
-                            // Update orbiting sparkle effects around the floating gem
                             for(let sp = 0; sp < rock.sparkles.length; sp++) {
                                 const sparkData = rock.sparkles[sp];
                                 const angle = elapsedTime * 3.5 + sparkData.angleOffset;
@@ -932,6 +932,7 @@
                     scene.remove(fg.mesh);
                     flyingGems.splice(i, 1);
                     gemCount += fg.value;
+                    saveGame();
                     updateShopUI();
                 }
             }
