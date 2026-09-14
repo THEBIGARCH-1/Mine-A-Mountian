@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Roblox Mining Simulator - Enhanced FX & Crystals</title>
+    <title>Roblox Mining Simulator - Plain Rocks</title>
     <style>
         body { 
             margin: 0; 
@@ -108,7 +108,7 @@
     <div id="instructions">
         WASD: Fast Move | SHIFT: Sprint | SPACE: Jump<br>
         LEFT / RIGHT-CLICK & Drag OR ARROWS: Rotate Camera<br>
-        <strong>Hold / Tap 'E'</strong> near a shaking rock to Mine!
+        <strong>Hold / Tap 'E'</strong> near a rock to Mine!
     </div>
 
     <div id="ui-hud">
@@ -126,42 +126,27 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
     <script>
-        // --- GAME STATE & CONFIGS (WITH LOCALSTORAGE LOAD) ---
+        // --- GAME STATE & LOCALSTORAGE SAVE ---
         let gemCount = parseInt(localStorage.getItem('mining_gems')) || 0;
         let currentPickaxeIndex = parseInt(localStorage.getItem('mining_pickaxe')) || 0;
 
         const pickaxes = [
-            { name: "Rusty Pickaxe", damage: 1, cost: 0, color: 0x8b5a2b },
-            { name: "Stone Pickaxe", damage: 3, cost: 25, color: 0x888888 },
-            { name: "Iron Pickaxe", damage: 8, cost: 100, color: 0xcccccc },
-            { name: "Gold Pickaxe", damage: 20, cost: 400, color: 0xffd700 },
-            { name: "Cosmic Pickaxe", damage: 50, cost: 1500, color: 0x9400d3 }
+            { name: "Rusty Pickaxe", damage: 1, cost: 0 },
+            { name: "Stone Pickaxe", damage: 3, cost: 25 },
+            { name: "Iron Pickaxe", damage: 8, cost: 100 },
+            { name: "Gold Pickaxe", damage: 20, cost: 400 },
+            { name: "Cosmic Pickaxe", damage: 50, cost: 1500 }
         ];
 
         const rockTiers = [
-            { 
-                name: "Common", hp: 3, color: 0x555555, ringColor: 0xffffff, gemValue: 1,
-                types: ["Cobblestone", "Basalt", "Pebble Rock", "Granite", "Sandstone"]
-            },
-            { 
-                name: "Uncommon", hp: 10, color: 0x2e8b57, ringColor: 0x00ff00, gemValue: 5,
-                types: ["Mossy Boulder", "Limestone", "Diorite", "Slate", "Serpentine"]
-            },
-            { 
-                name: "Rare", hp: 30, color: 0x1e90ff, ringColor: 0x00bfff, gemValue: 20,
-                types: ["Sapphire Rock", "Lapis Ore", "Azurite", "Cobalt Stone", "Sodalite"]
-            },
-            { 
-                name: "Epic", hp: 90, color: 0x9932cc, ringColor: 0xda70d6, gemValue: 80,
-                types: ["Amethyst Cluster", "Ruby Rock", "Garnet Stone", "Topaz Node", "Morganite"]
-            },
-            { 
-                name: "Cosmic", hp: 250, color: 0xff4500, ringColor: 0xffd700, gemValue: 300,
-                types: ["Obsidian Core", "Meteorite", "Nether Rock", "Void Crystal", "Cosmic Monolith"]
-            }
+            { name: "Common Rock", hp: 5, color: 0x777777, gemValue: 1 },
+            { name: "Hard Rock", hp: 15, color: 0x555555, gemValue: 4 },
+            { name: "Iron Rock", hp: 40, color: 0x666666, gemValue: 15 },
+            { name: "Diamond Rock", hp: 100, color: 0x446688, gemValue: 50 },
+            { name: "Obsidian Rock", hp: 250, color: 0x222222, gemValue: 150 }
         ];
 
-        // --- 1. SAFE SCENE SETUP ---
+        // --- SCENE SETUP ---
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x87ceeb);
         scene.fog = new THREE.FogExp2(0x87ceeb, 0.006);
@@ -172,7 +157,7 @@
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
         document.body.appendChild(renderer.domElement);
 
-        // --- 2. LIGHTS ---
+        // --- LIGHTS ---
         const ambientLight = new THREE.AmbientLight(0xffffff, 0.75);
         scene.add(ambientLight);
 
@@ -180,7 +165,7 @@
         dirLight.position.set(50, 80, 40);
         scene.add(dirLight);
 
-        // --- 3. TERRAIN ---
+        // --- TERRAIN ---
         const groundSize = 300;
         const groundGeometry = new THREE.PlaneGeometry(groundSize, groundSize);
         groundGeometry.rotateX(-Math.PI / 2);
@@ -189,7 +174,7 @@
         const ground = new THREE.Mesh(groundGeometry, groundMaterial);
         scene.add(ground);
 
-        // --- 4. FENCE ---
+        // --- FENCE ---
         const fenceMaterial = new THREE.MeshLambertMaterial({ color: 0xffffff });
         const fenceGroup = new THREE.Group();
         const halfSize = groundSize / 2 - 2;
@@ -223,38 +208,7 @@
         }
         scene.add(fenceGroup);
 
-        // --- 5. CAVES ---
-        const caveMaterial = new THREE.MeshStandardMaterial({ color: 0x444444, roughness: 0.9, flatShading: true });
-        const caveGroup = new THREE.Group();
-
-        function createCave(x, z, scale = 1) {
-            const cave = new THREE.Group();
-            const archGeo = new THREE.TorusGeometry(4 * scale, 1.5 * scale, 6, 12, Math.PI);
-            const arch = new THREE.Mesh(archGeo, caveMaterial);
-            arch.rotation.x = Math.PI / 2;
-            arch.position.y = 1.5 * scale;
-            cave.add(arch);
-
-            const moundGeo = new THREE.DodecahedronGeometry(3 * scale, 1);
-            const mound1 = new THREE.Mesh(moundGeo, caveMaterial);
-            mound1.position.set(-3 * scale, 1, -1);
-            cave.add(mound1);
-
-            const mound2 = new THREE.Mesh(moundGeo, caveMaterial);
-            mound2.position.set(3 * scale, 1, -1);
-            cave.add(mound2);
-
-            cave.position.set(x, 0, z);
-            caveGroup.add(cave);
-        }
-
-        createCave(-80, -80, 2);
-        createCave(90, 80, 2.5);
-        createCave(-90, 70, 1.5);
-        createCave(70, -90, 1.8);
-        scene.add(caveGroup);
-
-        // --- 6. GRASS FIELD ---
+        // --- GRASS FIELD ---
         const grassGeometry = new THREE.ConeGeometry(0.08, 0.7, 3);
         grassGeometry.translate(0, 0.35, 0); 
 
@@ -320,37 +274,9 @@
         grassGeometry.setAttribute('phase', new THREE.InstancedBufferAttribute(phases, 1));
         scene.add(grassField);
 
-        // --- 7. ROCKS & CRYSTALS ---
-        function createSolidRockGeometry() {
-            const geom = new THREE.DodecahedronGeometry(1, 1);
-            const pos = geom.attributes.position;
-            const vector = new THREE.Vector3();
-            for (let i = 0; i < pos.count; i++) {
-                vector.fromBufferAttribute(pos, i);
-                vector.x += (Math.random() - 0.5) * 0.35;
-                vector.y += (Math.random() - 0.5) * 0.35;
-                vector.z += (Math.random() - 0.5) * 0.35;
-                pos.setXYZ(i, vector.x, vector.y, vector.z);
-            }
-            geom.computeVertexNormals();
-            return geom;
-        }
-
-        function createGemGeometry(tierIndex) {
-            if (tierIndex === 0) return new THREE.OctahedronGeometry(0.3 + Math.random() * 0.3, 0); 
-            if (tierIndex === 1) return new THREE.ConeGeometry(0.25 + Math.random() * 0.2, 0.7 + Math.random() * 0.4, 5);  
-            if (tierIndex === 2) return new THREE.DodecahedronGeometry(0.35 + Math.random() * 0.25, 0); 
-            if (tierIndex === 3) return new THREE.CylinderGeometry(0.12, 0.35 + Math.random() * 0.2, 0.8 + Math.random() * 0.4, 6); 
-            return new THREE.TorusKnotGeometry(0.25 + Math.random() * 0.15, 0.07, 32, 8); 
-        }
-
-        const rockCount = 120;
+        // --- ORIGINAL PLAIN ROCKS ---
+        const rockCount = 100;
         const rocksList = [];
-        const ringGeo = new THREE.RingGeometry(1.0, 1.25, 32);
-        ringGeo.rotateX(-Math.PI / 2);
-
-        const activeExplosions = [];
-        const flyingGems = [];
 
         for (let i = 0; i < rockCount; i++) {
             let rx = (Math.random() - 0.5) * 270;
@@ -365,63 +291,27 @@
             if (randTierRoll > 0.99) tierIndex = 4; 
 
             const tier = rockTiers[tierIndex];
-            const typeName = tier.types[Math.floor(Math.random() * tier.types.length)];
 
-            const baseScaleX = 0.6 + Math.random() * 1.0;
-            const baseScaleY = 0.5 + Math.random() * 1.0;
-            const baseScaleZ = 0.6 + Math.random() * 1.0;
-
-            const rockGeo = createSolidRockGeometry();
-            const rockMat = new THREE.MeshStandardMaterial({ 
-                color: tier.color, 
-                roughness: 0.75, 
-                metalness: 0.25, 
-                flatShading: true,
-                emissive: tier.ringColor,
-                emissiveIntensity: 0.12
-            });
+            // Standard plain rock geometry & material without glows or crystal effects
+            const rockGeo = new THREE.DodecahedronGeometry(1.2 + Math.random() * 0.8, 1);
+            const rockMat = new THREE.MeshLambertMaterial({ color: tier.color, flatShading: true });
 
             const rockMesh = new THREE.Mesh(rockGeo, rockMat);
-            rockMesh.position.set(rx, baseScaleY * 0.5, rz);
-            const baseRotX = Math.random() * 0.3;
-            const baseRotY = Math.random() * Math.PI;
-            const baseRotZ = Math.random() * 0.3;
-            rockMesh.rotation.set(baseRotX, baseRotY, baseRotZ);
-            rockMesh.scale.set(baseScaleX, baseScaleY, baseScaleZ);
+            rockMesh.position.set(rx, 1.0, rz);
+            rockMesh.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
             scene.add(rockMesh);
 
-            const ringMat = new THREE.MeshBasicMaterial({ color: tier.ringColor, side: THREE.DoubleSide });
-            const ringMesh = new THREE.Mesh(ringGeo, ringMat);
-            ringMesh.position.set(rx, 0.05, rz);
-            const ringRadius = Math.max(baseScaleX, baseScaleZ) * 1.35;
-            ringMesh.scale.set(ringRadius, ringRadius, ringRadius);
-            ringMesh.visible = false;
-            scene.add(ringMesh);
-
-            const boundingRadius = Math.max(baseScaleX, baseScaleZ) * 0.85;
             rocksList.push({
                 mesh: rockMesh,
-                ring: ringMesh,
                 tier: tier,
-                tierIndex: tierIndex,
-                typeName: typeName,
                 maxHp: tier.hp,
                 hp: tier.hp,
                 x: rx, z: rz,
-                baseY: baseScaleY * 0.5,
-                baseRotZ: baseRotZ,
-                baseScale: new THREE.Vector3(baseScaleX, baseScaleY, baseScaleZ),
-                radius: boundingRadius,
-                state: 'intact',
-                gem: null,
-                gemLight: null,
-                sparkles: [],
-                shards: [],
-                riseProgress: 0
+                radius: 1.5
             });
         }
 
-        // --- 8. CHARACTER ---
+        // --- CHARACTER ---
         const canvas = document.createElement('canvas');
         canvas.width = 128; canvas.height = 128;
         const ctx = canvas.getContext('2d');
@@ -481,7 +371,7 @@
         const leftLeg = createLimb(new THREE.BoxGeometry(0.5, 1.2, 0.5), pantsMat, new THREE.Vector3(-0.35, 0.6, 0));
         const rightLeg = createLimb(new THREE.BoxGeometry(0.5, 1.2, 0.5), pantsMat, new THREE.Vector3(0.35, 0.6, 0));
 
-        // --- 9. CONTROLS & SHOP ---
+        // --- CONTROLS & SHOP ---
         const keys = { 
             w: false, a: false, s: false, d: false, 
             ArrowLeft: false, ArrowRight: false, ArrowUp: false, ArrowDown: false,
@@ -592,7 +482,6 @@
             newZ = Math.max(-boundLimit, Math.min(boundLimit, newZ));
 
             for (const rock of rocksList) {
-                if (rock.state === 'shattered' || rock.state === 'collected') continue;
                 const dx = newX - rock.x;
                 const dz = newZ - rock.z;
                 const dist = Math.hypot(dx, dz);
@@ -609,57 +498,7 @@
             return { x: newX, z: newZ };
         }
 
-        function spawnExplosionFX(pos, colorHex) {
-            const particleCount = 28;
-            const particleGeo = new THREE.SphereGeometry(0.12, 4, 4);
-            const particleMat = new THREE.MeshBasicMaterial({ 
-                color: colorHex, 
-                transparent: true, 
-                opacity: 1.0 
-            });
-
-            const particles = [];
-            for (let i = 0; i < particleCount; i++) {
-                const mesh = new THREE.Mesh(particleGeo, particleMat.clone());
-                mesh.position.copy(pos);
-                
-                const theta = Math.random() * Math.PI * 2;
-                const phi = Math.acos((Math.random() * 2) - 1);
-                const speed = 0.12 + Math.random() * 0.22;
-
-                mesh.userData = {
-                    vel: new THREE.Vector3(
-                        Math.sin(phi) * Math.cos(theta) * speed,
-                        Math.cos(phi) * speed + 0.1,
-                        Math.sin(phi) * Math.sin(theta) * speed
-                    ),
-                    life: 1.0
-                };
-                scene.add(mesh);
-                particles.push(mesh);
-            }
-
-            const ringGeo = new THREE.RingGeometry(0.1, 0.3, 16);
-            ringGeo.rotateX(-Math.PI / 2);
-            const ringMat = new THREE.MeshBasicMaterial({ 
-                color: colorHex, 
-                side: THREE.DoubleSide, 
-                transparent: true, 
-                opacity: 0.9 
-            });
-            const shockwave = new THREE.Mesh(ringGeo, ringMat);
-            shockwave.position.copy(pos);
-            shockwave.position.y += 0.1;
-            scene.add(shockwave);
-
-            activeExplosions.push({
-                particles: particles,
-                shockwave: shockwave,
-                life: 1.0
-            });
-        }
-
-        // --- 10. LOOP ---
+        // --- GAME LOOP ---
         const clock = new THREE.Clock();
 
         function animate() {
@@ -741,7 +580,6 @@
             let minDistance = interactionDistance;
 
             for (const rock of rocksList) {
-                if (rock.state === 'collected') continue;
                 const dist = Math.hypot(playerPos.x - rock.x, playerPos.z - rock.z);
                 if (dist < minDistance) {
                     minDistance = dist;
@@ -751,190 +589,30 @@
 
             for (const rock of rocksList) {
                 if (rock === closestRock) {
-                    if (rock.state === 'intact') {
-                        rock.ring.visible = true;
-                        const targetScale = rock.baseScale.clone().multiplyScalar(1.18);
-                        rock.mesh.scale.lerp(targetScale, 0.1);
-                        const shakeOffset = Math.sin(elapsedTime * 35) * 0.05;
-                        rock.mesh.rotation.z = rock.baseRotZ + shakeOffset;
+                    if (keys.e && !eKeyProcessed) {
+                        eKeyProcessed = true;
+                        const damage = pickaxes[currentPickaxeIndex].damage;
+                        rock.hp -= damage;
+                        showNotification(`Hit ${rock.tier.name}! (-${damage} HP) [${Math.max(0, rock.hp)}/${rock.maxHp}]`);
 
-                        if (keys.e && !eKeyProcessed) {
-                            eKeyProcessed = true;
-                            const damage = pickaxes[currentPickaxeIndex].damage;
-                            rock.hp -= damage;
-                            showNotification(`Hit ${rock.typeName}! (-${damage} HP) [${Math.max(0, rock.hp)}/${rock.maxHp}]`);
+                        if (rock.hp <= 0) {
+                            gemCount += rock.tier.gemValue;
+                            saveGame();
+                            updateShopUI();
+                            showNotification(`Mined ${rock.tier.name}! (+${rock.tier.gemValue} Gems)`);
 
-                            if (rock.hp <= 0) {
-                                rock.state = 'rising';
-                                rock.ring.visible = false;
-                                spawnExplosionFX(rock.mesh.position, rock.tier.ringColor);
-                            }
-                        }
-                    } else if (rock.state === 'rising') {
-                        rock.riseProgress += 0.05;
-                        rock.mesh.position.y = rock.baseY + Math.min(rock.riseProgress * 1.5, 2.0);
-                        
-                        if (rock.riseProgress >= 1.0) {
-                            rock.state = 'shattered';
-                            rock.mesh.visible = false;
-
-                            const shardGeo = new THREE.TetrahedronGeometry(0.3, 0);
-                            for (let s = 0; s < 6; s++) {
-                                const shard = new THREE.Mesh(shardGeo, rock.mesh.material);
-                                shard.position.copy(rock.mesh.position);
-                                shard.userData = {
-                                    vel: new THREE.Vector3((Math.random() - 0.5) * 0.25, Math.random() * 0.2 + 0.1, (Math.random() - 0.5) * 0.25),
-                                    rotSpeed: new THREE.Vector3(Math.random(), Math.random(), Math.random())
-                                };
-                                scene.add(shard);
-                                rock.shards.push(shard);
-                            }
-
-                            const gemGeo = createGemGeometry(rock.tierIndex);
-                            const gemMat = new THREE.MeshStandardMaterial({ 
-                                color: rock.tier.ringColor, 
-                                emissive: rock.tier.ringColor, 
-                                emissiveIntensity: 0.95,
-                                roughness: 0.15, 
-                                metalness: 0.85,
-                                flatShading: true
-                            });
-                            const gemMesh = new THREE.Mesh(gemGeo, gemMat);
-                            gemMesh.position.set(rock.x, rock.baseY + 1.2, rock.z);
-                            scene.add(gemMesh);
-                            rock.gem = gemMesh;
-
-                            const gemLight = new THREE.PointLight(rock.tier.ringColor, 2.5, 4.0);
-                            gemLight.position.set(rock.x, rock.baseY + 1.2, rock.z);
-                            scene.add(gemLight);
-                            rock.gemLight = gemLight;
-
-                            const sparkleGeo = new THREE.SphereGeometry(0.06, 4, 4);
-                            const sparkleMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-                            for(let sp = 0; sp < 4; sp++) {
-                                const sparkle = new THREE.Mesh(sparkleGeo, sparkleMat);
-                                scene.add(sparkle);
-                                rock.sparkles.push({
-                                    mesh: sparkle,
-                                    angleOffset: (sp * Math.PI / 2)
-                                });
-                            }
-                        }
-                    } else if (rock.state === 'shattered') {
-                        if (rock.gem) {
-                            const floatY = rock.baseY + 1.2 + Math.sin(elapsedTime * 4) * 0.2;
-                            rock.gem.position.y = floatY;
-                            rock.gem.rotation.y += 0.03;
-                            rock.gem.rotation.x += 0.01;
-
-                            if (rock.gemLight) {
-                                rock.gemLight.position.y = floatY;
-                            }
-
-                            for(let sp = 0; sp < rock.sparkles.length; sp++) {
-                                const sparkData = rock.sparkles[sp];
-                                const angle = elapsedTime * 3.5 + sparkData.angleOffset;
-                                const sx = rock.x + Math.cos(angle) * 0.55;
-                                const sz = rock.z + Math.sin(angle) * 0.55;
-                                sparkData.mesh.position.set(sx, floatY + Math.sin(angle * 2) * 0.1, sz);
-                            }
-
-                            if (keys.e && !eKeyProcessed) {
-                                eKeyProcessed = true;
-                                rock.state = 'collected';
-                                const gemToFly = rock.gem;
-                                rock.gem = null;
-
-                                if (rock.gemLight) {
-                                    scene.remove(rock.gemLight);
-                                    rock.gemLight = null;
-                                }
-
-                                for(let sp of rock.sparkles) {
-                                    scene.remove(sp.mesh);
-                                }
-                                rock.sparkles = [];
-
-                                flyingGems.push({
-                                    mesh: gemToFly,
-                                    value: rock.tier.gemValue,
-                                    progress: 0
-                                });
-                                showNotification(`Collected ${rock.tier.name} Gem! (+${rock.tier.gemValue} Gems)`);
-                            }
+                            // Respawn rock elsewhere
+                            rock.x = (Math.random() - 0.5) * 270;
+                            rock.z = (Math.random() - 0.5) * 270;
+                            rock.mesh.position.set(rock.x, 1.0, rock.z);
+                            rock.hp = rock.maxHp;
                         }
                     }
-                } else {
-                    if (rock.state === 'intact') {
-                        rock.ring.visible = false;
-                        rock.mesh.scale.lerp(rock.baseScale, 0.1);
-                        rock.mesh.rotation.z = THREE.MathUtils.lerp(rock.mesh.rotation.z, rock.baseRotZ, 0.1);
-                    }
-                }
-
-                if (rock.shards.length > 0) {
-                    for (const shard of rock.shards) {
-                        shard.position.add(shard.userData.vel);
-                        shard.userData.vel.y -= 0.02;
-                        shard.rotation.x += shard.userData.rotSpeed.x * 0.05;
-                        shard.rotation.y += shard.userData.rotSpeed.y * 0.05;
-
-                        if (shard.position.y <= 0.1) {
-                            shard.position.y = 0.1;
-                            shard.userData.vel.set(0, 0, 0);
-                        }
-                    }
-                }
-            }
-
-            for (let i = activeExplosions.length - 1; i >= 0; i--) {
-                const exp = activeExplosions[i];
-                exp.life -= 0.03;
-                
-                for (const p of exp.particles) {
-                    p.position.add(p.userData.vel);
-                    p.userData.vel.y -= 0.008; 
-                    p.material.opacity = exp.life;
-                }
-
-                const waveScale = (1.0 - exp.life) * 3.5 + 1.0;
-                exp.shockwave.scale.set(waveScale, waveScale, waveScale);
-                exp.shockwave.material.opacity = exp.life * 0.8;
-
-                if (exp.life <= 0) {
-                    for (const p of exp.particles) {
-                        scene.remove(p);
-                        p.geometry.dispose();
-                        p.material.dispose();
-                    }
-                    scene.remove(exp.shockwave);
-                    exp.shockwave.geometry.dispose();
-                    exp.shockwave.material.dispose();
-                    activeExplosions.splice(i, 1);
                 }
             }
 
             if (!keys.e) {
                 eKeyProcessed = false;
-            }
-
-            for (let i = flyingGems.length - 1; i >= 0; i--) {
-                const fg = flyingGems[i];
-                fg.progress += 0.03;
-
-                const backpackWorldPos = new THREE.Vector3();
-                backpack.getWorldPosition(backpackWorldPos);
-
-                fg.mesh.position.lerp(backpackWorldPos, fg.progress);
-                fg.mesh.scale.multiplyScalar(0.95);
-
-                if (fg.progress >= 1.0 || fg.mesh.position.distanceTo(backpackWorldPos) < 0.3) {
-                    scene.remove(fg.mesh);
-                    flyingGems.splice(i, 1);
-                    gemCount += fg.value;
-                    saveGame();
-                    updateShopUI();
-                }
             }
 
             headGroup.visible = camDistance > 0.8;
